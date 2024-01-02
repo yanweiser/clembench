@@ -1,6 +1,7 @@
 
-# TODO: history of player2
-# TODO: self.aborted?
+# TODO integrate images
+# TODO add to _validate_player_response: do not automatically return True (important for when not mock)
+# TODO add played or aborted metric to compute_scores (see prev. todo)
 
 
 import random
@@ -30,17 +31,16 @@ class Speaker(Player):
         #self.initial_letter: str = letter
 
         # a list to keep the dialogue history
-        self.history: List = []
+        # self.history: List = []
 
     # implement this method as you prefer, with these same arguments
     def _custom_response(self, messages, turn_idx) -> str:
         """Return yes or no randomly."""
         k = random.randint(0, 1)   
         if k == 0:
-            answer = "No"
+            return "No"
         else:
-            answer = "Yes"
-        return answer
+            return "Yes" 
     
 
 class Judge(Player):
@@ -49,7 +49,7 @@ class Judge(Player):
         super().__init__("programmatic")
         #self.name = name
 
-    def _custom_response(self):
+    def _custom_response(self, messages, turn_idx):
         return "That seems right."
 
 
@@ -61,17 +61,16 @@ class Cloudgame(DialogueGameMaster):
         super().__init__(GAME_NAME, experiment, player_backends)
         # fetch experiment parameters here
         self.max_words = 2
+        self.turns = []
         self.allowed_words = ["yes", "no"]
-        self.success = False
+        self.success = True
         self.aborted: bool = False
 
         self.experiment = experiment['name']
-        self.model_a = player_backends[0]
-        self.model_b = player_backends[1]
+        #self.model_a = player_backends[0]
+        #self.model_b = player_backends[1]
        
-        
-            
-        
+
     def _on_setup(self, **game_instance):
 
         """" sets the information you specify in instances.json """
@@ -81,7 +80,7 @@ class Cloudgame(DialogueGameMaster):
         self.prompt = game_instance["prompt"]
 
         self.speaker = Speaker(self.player_backends[0])
-        self.judge = Judge(self.player_backends[1])
+        self.judge = Judge(self.experiment) # Argument hier ist relativ arbiträr
 
         self.add_player(self.speaker)
         self.add_player(self.judge)
@@ -89,12 +88,14 @@ class Cloudgame(DialogueGameMaster):
 
     
     def _does_game_proceed(self):
-
-        return not self.aborted
+        if len(self.turns) == 0:
+            return True
+        return False
     
     def _on_before_game(self):
         # add prompt to speaker message history
         self.add_user_message(self.speaker, self.prompt)
+        # self.add_user_message(self.judge, "The game starts here.")
     
 
     def _validate_player_response(self, player: Player, answer: str) -> bool:
@@ -104,24 +105,66 @@ class Cloudgame(DialogueGameMaster):
 
         # auch schauen, ob es in ja oder nein drin ist 
 
-        if player == Speaker:
-            if answer.to_lower() not in self.allowed_words:
-                return False
-
+        if player == self.speaker:
+            true_answer = self.experiment
+            if answer.lower() not in self.allowed_words:
+                self.success = False
+            elif answer.lower() != true_answer:
+                self.success = False
+          
         return True
+
+        # if player == Speaker:
+        #     if answer.lower() not in self.allowed_words:
+        #         return False
+            
+        # if player == self.judge:
+        #     if answer != "That seems right.":
+        #         self.success == False
+        #         return True
+            
+        # if player == Judge:
+        #     if answer != "That seems right.":
+        #         return False
+            
+
     
     def _after_add_player_response(self, player: Player, utterance: str):
-        if player == Speaker:
+        if player == self.speaker:
             self.add_user_message(self.judge, utterance)
+        if player == self.judge:
+            self.add_user_message(self.speaker, utterance)
+        
+    def _on_after_turn(self, turn_idx: int):
+
+        self.log_to_self(type_ = "judgement", value = self.success)
+        self.turns.append(self.success)
+
+    def _on_after_game(self):
+        self.log_to_self(type_ = "End of game", value = "Game finished.")
+
         
 
 
     # from hellogame
-    def compute_scores(self) -> None:
-        score = 0
-        if self.success:
-            score = 1
-        self.log_episode_score('Accuracy', score)
+    def compute_scores(self, episode_interactions) -> None:
+        # score = 0
+        # if self.success:
+        #     score = 1
+        # self.log_episode_score('Accuracy', score)
+        ####
+
+        for t_index, turn in enumerate(episode_interactions["turns"]):
+            # player_1_message = turn[1]['action']['content']
+            # jetzt kommen eigentlich die Abfragen
+            score = 0
+            for event in turn:
+                action = event["action"]
+                if action["type"] == "judgement":
+                    score = action["content"]
+
+                self.log_episode_score('Accuracy', 1 if score else 0)
+
 
 
 
