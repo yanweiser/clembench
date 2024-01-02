@@ -16,8 +16,8 @@ class CloudGameInstanceGenerator(GameInstanceGenerator):
     def on_generate(self):
       
         prompt = self.load_template('resources/initial_prompts/prompt.template')
-        experiments = {"no_clouds" : self.load_file('resources/no_clouds.txt').strip('\n').split('\n'), 
-                 "yes_clouds": self.load_file('resources/yes_clouds.txt').strip('\n').split('\n') }
+        experiments = {"no" : self.load_file('resources/no_clouds.txt').strip('\n').split('\n'), 
+                 "yes": self.load_file('resources/yes_clouds.txt').strip('\n').split('\n') }
 
         for exp in experiments.keys():
              experiment = self.add_experiment(exp)
