@@ -25,7 +25,7 @@ class CloudGameInstanceGenerator(GameInstanceGenerator):
              for inst in experiments[exp]:
                  game_id = game_id
                  instance = self.add_game_instance(experiment, game_id)
-                 instance["image"] = inst
+                 instance["image"] = "games/cloudgame/resources/images/" + inst
                  instance["prompt"] = prompt
                  game_id += 1
 
