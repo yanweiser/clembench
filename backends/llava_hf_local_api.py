@@ -4,7 +4,6 @@ from typing import List, Dict, Tuple, Any, Optional
 import torch
 import backends
 import transformers
-from transformers import AutoProcessor, LlavaForConditionalGeneration
 import os
 import copy
 from PIL import Image
