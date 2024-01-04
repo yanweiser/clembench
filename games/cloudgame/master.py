@@ -94,7 +94,7 @@ class Cloudgame(DialogueGameMaster):
     
     def _on_before_game(self):
         # add prompt to speaker message history
-        self.add_user_message(self.speaker, self.prompt)
+        self.add_user_message(self.speaker, self.prompt)#, self.image)
         # self.add_user_message(self.judge, "The game starts here.")
     
 
@@ -142,6 +142,16 @@ class Cloudgame(DialogueGameMaster):
 
     def _on_after_game(self):
         self.log_to_self(type_ = "End of game", value = "Game finished.")
+
+
+
+    # def add_message(self, player: Player, utterance: str, role: str, image : str):
+    #     message = {"role": role, "content": utterance, "image": image}
+    #     history = self.messages_by_names[player.descriptor]
+    #     history.append(message)
+
+    # def add_user_message(self, player: Player, utterance: str, image : str):
+    #     self.add_message(player, utterance, role="user", image= image)
 
         
 
