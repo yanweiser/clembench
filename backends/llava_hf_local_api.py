@@ -8,15 +8,20 @@ from transformers import AutoProcessor, LlavaForConditionalGeneration
 import os
 import copy
 from PIL import Image
+import requests
+from io import BytesIO
+
+from llava.model.builder import load_pretrained_model
+from llava.mm_utils import get_model_name_from_path
+from llava.eval.run_llava import eval_model
+from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+from llava.mm_utils import tokenizer_image_token
 
 logger = backends.get_logger(__name__)
 
-LLAVA_1_5_13b = "llava-1.5-13b-hf"
-
+LLAVA_1_5_13b = "llava-v1.5-7b"
 
 SUPPORTED_MODELS = [LLAVA_1_5_13b]
-
-NAME = "llava1.5-hf"
 
 
 class Llava15LocalHF(backends.Backend):
@@ -42,17 +47,25 @@ class Llava15LocalHF(backends.Backend):
         CACHE_DIR = os.path.join(root_data_path, "huggingface_cache")
 
         # full HF model id string:
-        hf_id_str = f"llava-hf/{model_name.capitalize()}"
+        hf_id_str = f"liuhaotian/{model_name.capitalize()}"
         # load processor and model:
-        self.processor = AutoProcessor.from_pretrained(hf_id_str, token=self.api_key, device_map="auto",
-                                                       cache_dir=CACHE_DIR, verbose=False)
-        self.model = LlavaForConditionalGeneration.from_pretrained(hf_id_str, token=self.api_key,
-                                                          torch_dtype="auto", device_map="auto",
-                                                          cache_dir=CACHE_DIR)
+        self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
+            model_path=hf_id_str,
+            model_base=None,
+            model_name=get_model_name_from_path(hf_id_str)
+        )
         # use CUDA if available:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_name = model_name
         self.model_loaded = True
+
+    def load_image(self, image_file):
+        if image_file.startswith('http') or image_file.startswith('https'):
+            response = requests.get(image_file)
+            image = Image.open(BytesIO(response.content)).convert('RGB')
+        else:
+            image = Image.open(image_file).convert('RGB')
+        return image
 
     def generate_response(self, messages: List[Dict], model: str,
                           max_new_tokens: Optional[int] = 100, top_p: float = 0.9) -> Tuple[str, Any, str]:
@@ -105,7 +118,8 @@ class Llava15LocalHF(backends.Backend):
         assert len(imgs) == 1, 'exactly one Image should be passed to the model'
 
         # load image
-        raw_image = Image.open(imgs[0]) # to-do: should images be read via local path or imternet request?
+        raw_image = self.load_image(imgs[0]) # to-do: should images be read via local path or internet request?
+        image_tensor = self.image_processor.preprocess(raw_image, return_tensors='pt')['pixel_values'].half().to(self.device)
 
         # prompt template
         # USER:
@@ -129,7 +143,7 @@ class Llava15LocalHF(backends.Backend):
         assert current_messages, "messages cannot only contain a system prompt"
         assert current_messages[0]['role'] == 'user', "You need to start dialogue on a User entry"
 
-        prompt_text += f"USER:\n<image>\n{current_messages[0]['content']}\n\n"
+        prompt_text += f"USER:\n{DEFAULT_IMAGE_TOKEN}\n{current_messages[0]['content']}\n\n"
 
         for msg in current_messages[1:]:
             if msg['role'] == 'user':
@@ -138,34 +152,27 @@ class Llava15LocalHF(backends.Backend):
                 prompt_text = f"ASSISTANT:\n{msg['content']}\n\n"
         prompt_text += "ASSISTANT:\n"
 
-        # apply processor to get model inputs
-        inputs = self.processor(prompt_text, raw_image, return_tensors='pt').to(self.device)
+        input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
+
         
         # to do: Image path should be added to inputs in some way for logging purposes
         prompt = {"inputs": prompt_text, "max_new_tokens": max_new_tokens,
                     "temperature": self.temperature}
 
-        if do_sample:
-            model_output_ids = self.model.generate(
-                **inputs,
-                do_sample=do_sample,
+        with torch.inference_mode():
+            output_ids = model.generate(
+                input_ids,
+                images=image_tensor,
+                do_sample=True,
+                temperature=self.temperature,   #smallest possible temperature     
                 max_new_tokens=max_new_tokens,
-                temperature=self.temperature,
-                top_p=top_p
+                use_cache=True
             )
-        else:
-            model_output_ids = self.model.generate(
-                **inputs,
-                do_sample=do_sample,
-                max_new_tokens=max_new_tokens
-            )
+        model_output = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
 
-        model_output = self.tokenizer.batch_decode(model_output_ids)[0]
+        model_output = model_output.strip()
 
         response = {"response": model_output}
-
-        # get output text
-        response_text = self.processor.decode(model_output[0][2:], skip_special_tokens=True)
 
         # cull prompt from output:
         response_text = response_text.replace(prompt_text, "").strip()
