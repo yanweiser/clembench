@@ -10,11 +10,12 @@ from PIL import Image
 import requests
 from io import BytesIO
 
+
 from llava.model.builder import load_pretrained_model
 from llava.mm_utils import get_model_name_from_path
-from llava.eval.run_llava import eval_model
-from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
 from llava.mm_utils import tokenizer_image_token
+
 
 logger = backends.get_logger(__name__)
 
@@ -48,10 +49,12 @@ class Llava15LocalHF(backends.Backend):
         # full HF model id string:
         hf_id_str = f"liuhaotian/{model_name.capitalize()}"
         # load processor and model:
+        print('loading model')
         self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
             model_path=hf_id_str,
             model_base=None,
-            model_name=get_model_name_from_path(hf_id_str)
+            model_name=get_model_name_from_path(hf_id_str),
+            token=self.api_key
         )
         # use CUDA if available:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
