@@ -18,9 +18,9 @@ from llava.mm_utils import tokenizer_image_token
 
 logger = backends.get_logger(__name__)
 
-LLAVA_1_5_13b = "llava-v1.5-7b"
+LLAVA_1_5 = "llava-v1.5-7b"
 
-SUPPORTED_MODELS = [LLAVA_1_5_13b]
+SUPPORTED_MODELS = [LLAVA_1_5]
 
 
 class Llava15LocalHF(backends.Backend):
