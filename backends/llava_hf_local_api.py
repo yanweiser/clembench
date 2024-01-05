@@ -54,10 +54,12 @@ class Llava15LocalHF(backends.Backend):
             model_path=hf_id_str,
             model_base=None,
             model_name=get_model_name_from_path(hf_id_str),
-            token=self.api_key
+            token=self.api_key,
+            cache_dir = CACHE_DIR
         )
         # use CUDA if available:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # self.device = "cpu"
         self.model_name = model_name
         self.model_loaded = True
 
