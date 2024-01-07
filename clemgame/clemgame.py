@@ -33,7 +33,12 @@ class Player(abc.ABC):
         self.model_name = model_name
         self.remote = None
         if not Player.is_programmatic(model_name) and not Player.is_human(model_name):
+            # print('trying to load model')
             self.remote: backends.Backend = backends.lookup_by_model_name(model_name)
+            # if not self.remote:
+            #     print('failed')
+            # else:
+            #     print('success !! :)')
         self.descriptor: str = None
         logger.info("Player %s", self.get_description())
 
