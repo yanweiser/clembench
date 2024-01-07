@@ -45,6 +45,7 @@ class Llava15LocalHF(backends.Backend):
             # create root/data:
             os.mkdir(root_data_path)
         CACHE_DIR = os.path.join(root_data_path, "huggingface_cache")
+        OFFLOAD_DIR = os.path.join(root_data_path, "offload")
 
         # full HF model id string:
         hf_id_str = f"liuhaotian/{model_name.capitalize()}"
@@ -55,7 +56,9 @@ class Llava15LocalHF(backends.Backend):
             model_base=None,
             model_name=get_model_name_from_path(hf_id_str),
             token=self.api_key,
-            cache_dir = CACHE_DIR
+            cache_dir = CACHE_DIR,
+            device_map = 'auto',
+            torch_dtype = 'auto'
         )
         # use CUDA if available:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
