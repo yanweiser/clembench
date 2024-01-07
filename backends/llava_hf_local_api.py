@@ -159,7 +159,7 @@ class Llava15LocalHF(backends.Backend):
                 prompt_text = f"ASSISTANT:\n{msg['content']}\n\n"
         prompt_text += "ASSISTANT:\n"
 
-        input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
+        input_ids = tokenizer_image_token(prompt_text, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
 
         
         # to do: Image path should be added to inputs in some way for logging purposes
