@@ -147,14 +147,6 @@ class Cloudgame(DialogueGameMaster):
     def add_user_message(self, player: Player, utterance: str, image = None):
         self.add_message(player, utterance, role="user", image= image)
 
-    def add_message(self, player: Player, utterance: str, role: str, image : str):
-        message = {"role": role, "content": utterance, "image": image}
-        history = self.messages_by_names[player.descriptor]
-        history.append(message)
-
-    def add_user_message(self, player: Player, utterance: str, image : str):
-        self.add_message(player, utterance, role="user", image= image)
-
         
 
 
