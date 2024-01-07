@@ -1,13 +1,9 @@
-
-# TODO integrate images
 # TODO add to _validate_player_response: do not automatically return True (important for when not mock)
 # TODO add played or aborted metric to compute_scores (see prev. todo)
 
 
 import random
-import copy
 from typing import List, Dict, Tuple
-from string import ascii_lowercase as letters
 
 import numpy as np
 
@@ -150,6 +146,8 @@ class Cloudgame(DialogueGameMaster):
 
     def add_user_message(self, player: Player, utterance: str, image = None):
         self.add_message(player, utterance, role="user", image= image)
+
+        
 
 
     # from hellogame
