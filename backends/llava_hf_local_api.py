@@ -99,9 +99,10 @@ class Llava15LocalHF(backends.Backend):
             logger.info(f"Model device map: {self.model.hf_device_map}")
 
         # greedy decoding:
-        do_sample: bool = False
-        if self.temperature > 0.0:
-            do_sample = True
+
+        if self.temperature <= 0.0:
+            self.temperature = 0.01
+
 
         # turn off redundant transformers warnings:
         transformers.logging.set_verbosity_error()
