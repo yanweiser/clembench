@@ -12,16 +12,17 @@ from io import BytesIO
 # from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-from llava.model.builder import load_pretrained_model
-from llava.mm_utils import get_model_name_from_path
-from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
-from llava.mm_utils import tokenizer_image_token, KeywordsStoppingCriteria
+from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from llava.conversation import conv_templates, SeparatorStyle
+from llava.model.builder import load_pretrained_model
+from llava.utils import disable_torch_init
+from llava.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
+
 
 
 logger = backends.get_logger(__name__)
 
-LLAVA_1_5 = "llava-v1.5-13b"
+LLAVA_1_5 = "llava-v1.5-7b"
 
 SUPPORTED_MODELS = [LLAVA_1_5]
 
@@ -173,7 +174,7 @@ class Llava15LocalHF(backends.Backend):
 
         # input_ids = tokenizer_image_token(prompt_text, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
         
-        conv = conv_templates['llava_v0'].copy()
+        conv = conv_templates['llava_v1'].copy()
         
         for msg in current_messages:
             if msg['role'] == 'user':
@@ -203,7 +204,7 @@ class Llava15LocalHF(backends.Backend):
                 use_cache=True,
                 stopping_criteria = [stopping_criteria]
             ).to(self.device)
-        model_output = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
+        model_output = self.tokenizer.decode(output_ids, skip_special_tokens=True)[0]
 
         model_output = model_output.strip()
 
