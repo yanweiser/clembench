@@ -12,7 +12,7 @@ from io import BytesIO
 # from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
 from llava.conversation import conv_templates, SeparatorStyle
 from llava.model.builder import load_pretrained_model
 from llava.utils import disable_torch_init
@@ -163,28 +163,28 @@ class Llava15LocalHF(backends.Backend):
         assert current_messages, "messages cannot only contain a system prompt"
         assert current_messages[0]['role'] == 'user', "You need to start dialogue on a User entry"
         
-        current_messages[0]['content'] = f"{DEFAULT_IMAGE_TOKEN} {current_messages[0]['content']}"
+#         current_messages[0]['content'] = f"{DEFAULT_IMAGE_TOKEN} {current_messages[0]['content']}"
 
-        prompt_text += f"USER:\n{DEFAULT_IMAGE_TOKEN}\n{current_messages[0]['content']}\n\n"
+#         prompt_text += f"USER:\n{DEFAULT_IMAGE_TOKEN}\n{current_messages[0]['content']}\n\n"
 
-        for msg in current_messages[1:]:
+#         for msg in current_messages[1:]:
+#             if msg['role'] == 'user':
+#                 prompt_text = f"USER:\n{msg['content']}\n\n"
+#             else:
+#                 prompt_text = f"ASSISTANT:\n{msg['content']}\n\n"
+#         prompt_text += "ASSISTANT:\n"
+        
+        conv = conv_templates['llava_v1'].copy()
+        
+        for msg in current_messages:
             if msg['role'] == 'user':
-                prompt_text = f"USER:\n{msg['content']}\n\n"
+                conv.append_message(conv.roles[0], msg['content'])
             else:
-                prompt_text = f"ASSISTANT:\n{msg['content']}\n\n"
-        prompt_text += "ASSISTANT:\n"
-        
-        # conv = conv_templates['llava_v1'].copy()
-        
-        # for msg in current_messages:
-        #     if msg['role'] == 'user':
-        #         conv.append_message(conv.roles[0], msg['content'])
-        #     else:
-        #         conv.append_message(conv.roles[1], msg['content'])
+                conv.append_message(conv.roles[1], msg['content'])
                 
-        # prompt_text = conv.get_prompt()
+        prompt_text = conv.get_prompt()
         
-        input_ids = tokenizer_image_token(prompt_text, self.tokenizer, 32000, return_tensors='pt').unsqueeze(0).to(self.device)
+        input_ids = tokenizer_image_token(prompt_text, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
                 
         # stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
         # keywords = [stop_str]
