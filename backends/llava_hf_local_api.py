@@ -20,6 +20,7 @@ from llava.mm_utils import process_images, tokenizer_image_token, get_model_name
 
 
 
+
 logger = backends.get_logger(__name__)
 
 LLAVA_1_5 = "llava-v1.5-7b"
@@ -211,7 +212,7 @@ class Llava15LocalHF(backends.Backend):
         response = {"response": model_output}
 
         # cull prompt from output:
-        response_text = response_text.replace(prompt_text, "").strip()
+        response_text = model_output.replace(prompt_text, "").strip()
         # remove EOS token at the end of output:
         if response_text[-4:len(response_text)] == "</s>":
             response_text = response_text[:-4]
