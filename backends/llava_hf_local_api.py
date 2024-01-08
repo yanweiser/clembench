@@ -9,18 +9,19 @@ import copy
 from PIL import Image
 import requests
 from io import BytesIO
+# from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 from llava.model.builder import load_pretrained_model
 from llava.mm_utils import get_model_name_from_path
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
-from llava.mm_utils import tokenizer_image_token
+from llava.mm_utils import tokenizer_image_token, KeywordsStoppingCriteria
 from llava.conversation import conv_templates, SeparatorStyle
 
 
 logger = backends.get_logger(__name__)
 
-LLAVA_1_5 = "llava-v1.5-7b"
+LLAVA_1_5 = "llava-v1.5-13b"
 
 SUPPORTED_MODELS = [LLAVA_1_5]
 
@@ -51,7 +52,7 @@ class Llava15LocalHF(backends.Backend):
         # full HF model id string:
         hf_id_str = f"liuhaotian/{model_name.capitalize()}"
         # load processor and model:
-        print('loading model')
+        print(f'loading model {hf_id_str}')
         self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
             model_path=hf_id_str,
             model_base=None,
@@ -61,6 +62,15 @@ class Llava15LocalHF(backends.Backend):
             device_map = 'auto',
             torch_dtype = 'auto'
         )
+        # self.model = AutoModelForCausalLM.from_pretrained(hf_id_str,
+        #                                      device_map="auto",
+        #                                      trust_remote_code=False,
+        #                                      revision="main",
+        #                                      cache_dir = CACHE_DIR,
+        #                                      token = self.api_key,
+        #                                      torch_dtype = 'auto'
+        #                                      )
+        # self.tokenizer = 
         # use CUDA if available:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         # self.device = "cpu"
@@ -102,7 +112,7 @@ class Llava15LocalHF(backends.Backend):
         # greedy decoding:
 
         if self.temperature <= 0.0:
-            self.temperature = 0.01
+            self.temperature = 0.001
 
 
         # turn off redundant transformers warnings:
@@ -163,7 +173,7 @@ class Llava15LocalHF(backends.Backend):
 
         # input_ids = tokenizer_image_token(prompt_text, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
         
-        conv = conv_templates['llava_v1'].copy()
+        conv = conv_templates['llava_v0'].copy()
         
         for msg in current_messages:
             if msg['role'] == 'user':
@@ -175,7 +185,9 @@ class Llava15LocalHF(backends.Backend):
         
         input_ids = tokenizer_image_token(prompt_text, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
                 
-
+        stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+        keywords = [stop_str]
+        stopping_criteria = KeywordsStoppingCriteria(keywords, self.tokenizer, input_ids)
         
         # to do: Image path should be added to inputs in some way for logging purposes
         prompt = {"inputs": prompt_text, "max_new_tokens": max_new_tokens,
@@ -186,10 +198,11 @@ class Llava15LocalHF(backends.Backend):
                 input_ids,
                 images=image_tensor,
                 do_sample=True,
-                temperature=self.temperature,   #smallest possible temperature     
+                temperature=self.temperature,
                 max_new_tokens=max_new_tokens,
-                use_cache=True
-            )
+                use_cache=True,
+                stopping_criteria = [stopping_criteria]
+            ).to(self.device)
         model_output = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
 
         model_output = model_output.strip()
