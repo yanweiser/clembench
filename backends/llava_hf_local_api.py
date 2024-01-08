@@ -181,6 +181,7 @@ class Llava15LocalHF(backends.Backend):
                 conv.append_message(conv.roles[0], msg['content'])
             else:
                 conv.append_message(conv.roles[1], msg['content'])
+        conv.append_message(conv.roles[1], '')
                 
         prompt_text = conv.get_prompt()
         
