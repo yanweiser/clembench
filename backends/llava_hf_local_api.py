@@ -165,10 +165,10 @@ class Llava15LocalHF(backends.Backend):
         
         # to do: Image path should be added to inputs in some way for logging purposes
         prompt = {"inputs": prompt_text, "max_new_tokens": max_new_tokens,
-                    "temperature": self.temperature}
+                    "temperature": self.temperature, "image": imgs[0]}
 
         with torch.inference_mode():
-            output_ids = model.generate(
+            output_ids = self.model.generate(
                 input_ids,
                 images=image_tensor,
                 do_sample=True,
