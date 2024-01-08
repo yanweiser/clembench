@@ -15,6 +15,7 @@ from llava.model.builder import load_pretrained_model
 from llava.mm_utils import get_model_name_from_path
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
 from llava.mm_utils import tokenizer_image_token
+from llava.conversation import conv_templates, SeparatorStyle
 
 
 logger = backends.get_logger(__name__)
@@ -143,24 +144,37 @@ class Llava15LocalHF(backends.Backend):
         #   apply_chat_template is only for cllm tokenizers, so we do it by hand here
 
         if current_messages[0]['role'] == 'system':
-            prompt_text = current_messages[0]['content']
             del current_messages[0]
-        else:
-            prompt_text = ""
+        prompt_text = ""
 
         assert current_messages, "messages cannot only contain a system prompt"
         assert current_messages[0]['role'] == 'user', "You need to start dialogue on a User entry"
+        
+        current_messages[0]['content'] = f"{DEFAULT_IMAGE_TOKEN} {current_messages[0]['content']}"
 
-        prompt_text += f"USER:\n{DEFAULT_IMAGE_TOKEN}\n{current_messages[0]['content']}\n\n"
+        # prompt_text += f"USER:\n{DEFAULT_IMAGE_TOKEN}\n{current_messages[0]['content']}\n\n"
 
-        for msg in current_messages[1:]:
+        # for msg in current_messages[1:]:
+        #     if msg['role'] == 'user':
+        #         prompt_text = f"USER:\n{msg['content']}\n\n"
+        #     else:
+        #         prompt_text = f"ASSISTANT:\n{msg['content']}\n\n"
+        # prompt_text += "ASSISTANT:\n"
+
+        # input_ids = tokenizer_image_token(prompt_text, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
+        
+        conv = conv_templates['llava_v1'].copy()
+        
+        for msg in current_messages:
             if msg['role'] == 'user':
-                prompt_text = f"USER:\n{msg['content']}\n\n"
+                conv.append_message(conv.roles[0], msg['content'])
             else:
-                prompt_text = f"ASSISTANT:\n{msg['content']}\n\n"
-        prompt_text += "ASSISTANT:\n"
-
+                conv.append_message(conv.roles[1], msg['content'])
+                
+        prompt_text = conv.get_prompt()
+        
         input_ids = tokenizer_image_token(prompt_text, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
+                
 
         
         # to do: Image path should be added to inputs in some way for logging purposes
