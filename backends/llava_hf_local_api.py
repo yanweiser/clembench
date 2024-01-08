@@ -24,8 +24,9 @@ from llava.mm_utils import process_images, tokenizer_image_token, get_model_name
 logger = backends.get_logger(__name__)
 
 LLAVA_1_5 = "llava-v1.5-7b"
+LLAVA_1_5_BIG = "llava-v1.5-13b"
 
-SUPPORTED_MODELS = [LLAVA_1_5]
+SUPPORTED_MODELS = [LLAVA_1_5, LLAVA_1_5_BIG]
 
 
 class Llava15LocalHF(backends.Backend):
@@ -185,7 +186,7 @@ class Llava15LocalHF(backends.Backend):
                 
         prompt_text = conv.get_prompt()
         
-        input_ids = tokenizer_image_token(prompt_text, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
+        input_ids = tokenizer_image_token(prompt_text, self.tokenizer, 200, return_tensors='pt').unsqueeze(0).to(self.device)
                 
         stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
         keywords = [stop_str]
@@ -205,7 +206,7 @@ class Llava15LocalHF(backends.Backend):
                 use_cache=True,
                 stopping_criteria = [stopping_criteria]
             ).to(self.device)
-        model_output = self.tokenizer.decode(output_ids, skip_special_tokens=True)[0]
+        model_output = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
 
         model_output = model_output.strip()
 
