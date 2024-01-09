@@ -9,7 +9,6 @@ import copy
 from PIL import Image
 import requests
 from io import BytesIO
-# from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
@@ -65,18 +64,8 @@ class Llava15LocalHF(backends.Backend):
             device_map = 'auto',
             torch_dtype = 'auto'
         )
-        # self.model = AutoModelForCausalLM.from_pretrained(hf_id_str,
-        #                                      device_map="auto",
-        #                                      trust_remote_code=False,
-        #                                      revision="main",
-        #                                      cache_dir = CACHE_DIR,
-        #                                      token = self.api_key,
-        #                                      torch_dtype = 'auto'
-        #                                      )
-        # self.tokenizer = 
         # use CUDA if available:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        # self.device = "cpu"
         self.model_name = model_name
         self.model_loaded = True
 
@@ -176,6 +165,8 @@ class Llava15LocalHF(backends.Backend):
         
         conv = conv_templates['llava_v1'].copy()
         
+        current_messages[0]['content'] = f"{DEFAULT_IMAGE_TOKEN} {current_messages[0]['content']}"
+        
         for msg in current_messages:
             if msg['role'] == 'user':
                 conv.append_message(conv.roles[0], msg['content'])
@@ -185,11 +176,11 @@ class Llava15LocalHF(backends.Backend):
                 
         prompt_text = conv.get_prompt()
         
-        input_ids = tokenizer_image_token(prompt_text, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
-                
-        # stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
-        # keywords = [stop_str]
-        # stopping_criteria = KeywordsStoppingCriteria(keywords, self.tokenizer, input_ids)
+        input_ids = tokenizer_image_token(prompt_text, 
+                                          self.tokenizer, 
+                                          IMAGE_TOKEN_INDEX, 
+                                          return_tensors='pt').unsqueeze(0).to(self.device)
+      
         
         # to do: Image path should be added to inputs in some way for logging purposes
         prompt = {"inputs": current_messages, "max_new_tokens": max_new_tokens,
@@ -204,6 +195,7 @@ class Llava15LocalHF(backends.Backend):
                 max_new_tokens=max_new_tokens,
                 use_cache=True
             ).to(self.device)
+        output_ids = torch.maximum(output_ids, torch.zeros_like(output_ids))
         model_output = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
 
         model_output = model_output.strip()
@@ -211,7 +203,7 @@ class Llava15LocalHF(backends.Backend):
         response = {"response": model_output}
 
         # cull prompt from output:
-        response_text = model_output.split(prompt_text)[-1].strip()
+        response_text = model_output.split("ASSISTANT:")[-1].strip()
         # remove EOS token at the end of output:
         if response_text[-4:len(response_text)] == "</s>":
             response_text = response_text[:-4]
