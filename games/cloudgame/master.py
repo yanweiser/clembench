@@ -140,7 +140,10 @@ class Cloudgame(DialogueGameMaster):
         self.log_to_self(type_ = "End of game", value = "Game finished.")
 
     def add_message(self, player: Player, utterance: str, role: str, image = None):
-        message = {"role": role, "content": utterance, "image": image}
+        if image is None:
+            message = {"role": role, "content": utterance}
+        else:
+            message = {"role": role, "content": utterance, "image": image}
         history = self.messages_by_names[player.descriptor]
         history.append(message)
 
