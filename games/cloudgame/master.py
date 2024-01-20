@@ -12,6 +12,7 @@ from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster
 from clemgame import get_logger
 from clemgame.clemgame import Player
 #from games.cloudgame.players import Speaker
+from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE, METRIC_REQUEST_COUNT, METRIC_REQUEST_COUNT_PARSED,  METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_SUCCESS
 from games.cloudgame.instancegenerator import GAME_NAME
 
 
@@ -34,7 +35,7 @@ class Speaker(Player):
         """Return yes or no randomly."""
         k = random.randint(0, 1)   
         if k == 0:
-            return "No"
+            return "ANSWER: No"
         else:
             return "Yes" 
     
@@ -91,21 +92,38 @@ class Cloudgame(DialogueGameMaster):
     def _on_before_game(self):
         # add prompt to speaker message history
         self.add_user_message(self.speaker, self.prompt, image = self.image)
-        # self.add_user_message(self.judge, "The game starts here.")
+        self.add_user_message(self.judge, "The game starts here.")
     
-
+# TODO add to _validate_player_response: do not automatically return True (important for when not mock)
+# TODO add played or aborted metric to compute_scores (see prev. todo)
+        
     def _validate_player_response(self, player: Player, answer: str) -> bool:
         """Check if the utterance conforms to rules (cloudgame specific)."""
-        # true, wenn es wolken gibt und ja oder keine und nein -> dazu muss man schauen, wie die Instanzen aussehen
-        # erst mal ist alles korrekt
-
-        # auch schauen, ob es in ja oder nein drin ist 
+        # true, wenn es wolken gibt und ja oder keine und nein
 
         if player == self.speaker:
             true_answer = self.experiment
-            if answer.lower() not in self.allowed_words:
+            split_answer = answer.strip(".").split(" ")
+
+            if len(split_answer) != 2:
                 self.success = False
-            elif answer.lower() != true_answer:
+                self.aborted = True
+                self.log_to_self("Invalid word count", "Game aborted.")
+                return False
+            
+            if not answer.startswith("Answer:"):
+                self.success = False
+                self.aborted = True
+                self.log_to_self("Invalid format", "Game aborted.")
+                return False
+
+            if answer[1].lower() not in self.allowed_words:
+                self.success = False
+                self.aborted = True
+                self.log_to_self("Invalid words", "Game aborted.")
+                return False
+            
+            elif answer[1].lower() != true_answer:
                 self.success = False
           
         return True
@@ -134,10 +152,12 @@ class Cloudgame(DialogueGameMaster):
     def _on_after_turn(self, turn_idx: int):
 
         self.log_to_self(type_ = "judgement", value = self.success)
+        self.log_to_self(type_ = "aborted", value = self.aborted)
         self.turns.append(self.success)
 
     def _on_after_game(self):
         self.log_to_self(type_ = "End of game", value = "Game finished.")
+
 
     def add_message(self, player: Player, utterance: str, role: str, image = None):
         if image is None:
@@ -153,13 +173,8 @@ class Cloudgame(DialogueGameMaster):
         
 
 
-    # from hellogame
     def compute_scores(self, episode_interactions) -> None:
-        # score = 0
-        # if self.success:
-        #     score = 1
-        # self.log_episode_score('Accuracy', score)
-        ####
+        # TODO: bencheval.py funktioniert damit noch nicht
 
         for t_index, turn in enumerate(episode_interactions["turns"]):
             # player_1_message = turn[1]['action']['content']
@@ -167,11 +182,34 @@ class Cloudgame(DialogueGameMaster):
             score = 0
             for event in turn:
                 action = event["action"]
+
+                if action["type"] == "aborted":
+                    if action["content"]:
+                        aborted = True
+                        self.log_episode_score(METRIC_ABORTED, 1)
+                    else:
+                        aborted = False
+                        self.log_episode_score(METRIC_ABORTED, 0)
+    
                 if action["type"] == "judgement":
                     score = action["content"]
-
-                self.log_episode_score('Accuracy', 1 if score else 0)
-
+        if aborted:
+            self.log_episode_score(METRIC_ABORTED, 1)
+            self.log_episode_score(METRIC_SUCCESS, 0)
+            self.log_episode_score(METRIC_LOSE, 0)
+            # Game-specific metrics
+            self.log_episode_score(BENCH_SCORE, np.nan)
+        else:
+            self.log_episode_score(METRIC_ABORTED, 0)
+            self.log_episode_score(METRIC_SUCCESS, 1 if score else 0)
+            self.log_episode_score(METRIC_LOSE, 0 if score else 1)
+            self.log_episode_score(BENCH_SCORE, 100)
+        
+        # dummy values:
+        self.log_episode_score(METRIC_REQUEST_COUNT, 1)
+        self.log_episode_score(METRIC_REQUEST_COUNT_PARSED, 1)
+        self.log_episode_score(METRIC_REQUEST_COUNT_VIOLATED,1)
+        self.log_episode_score(METRIC_REQUEST_SUCCESS, 1)
 
 
 
