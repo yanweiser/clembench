@@ -11,12 +11,6 @@ import requests
 from io import BytesIO
 
 
-# from local_llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
-# from local_llava.conversation import conv_templates, SeparatorStyle
-# from local_llava.model.builder import load_pretrained_model
-# from local_llava.utils import disable_torch_init
-# from local_llava.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
-
 from transformers import LlavaForConditionalGeneration, AutoProcessor
 
 
@@ -26,7 +20,7 @@ logger = backends.get_logger(__name__)
 
 LLAVA_1_5 = "llava-1.5-7b-hf"
 LLAVA_1_5_BIG = "llava-1.5-13b-hf"
-# llava-v1.5-13b-hf
+
 
 SUPPORTED_MODELS = [LLAVA_1_5, LLAVA_1_5_BIG]
 
@@ -58,15 +52,6 @@ class Llava15LocalHF(backends.Backend):
         hf_id_str = f"llava-hf/{model_name.capitalize()}"
         # load processor and model:
         print(f'loading model {hf_id_str}')
-        # self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
-        #     model_path=hf_id_str,
-        #     model_base=None,
-        #     model_name=get_model_name_from_path(hf_id_str),
-        #     token=self.api_key,
-        #     cache_dir = CACHE_DIR,
-        #     device_map = 'auto',
-        #     torch_dtype = 'auto'
-        # )
         self.model = LlavaForConditionalGeneration.from_pretrained(
             hf_id_str, 
             torch_dtype='auto', 
@@ -115,7 +100,6 @@ class Llava15LocalHF(backends.Backend):
             logger.info(f"Model device map: {self.model.hf_device_map}")
 
         # greedy decoding:
-
         if self.temperature <= 0.0:
             self.temperature = 0.001
 
@@ -143,7 +127,6 @@ class Llava15LocalHF(backends.Backend):
 
         # load image
         raw_image = self.load_image(imgs[0]) # to-do: should images be read via local path or internet request?
-        # image_tensor = self.image_processor.preprocess(raw_image, return_tensors='pt')['pixel_values'].half().to(self.device)
 
         # prompt template
         # USER:
@@ -165,8 +148,6 @@ class Llava15LocalHF(backends.Backend):
         assert current_messages, "messages cannot only contain a system prompt"
         assert current_messages[0]['role'] == 'user', "You need to start dialogue on a User entry"
         
-#         current_messages[0]['content'] = f"{DEFAULT_IMAGE_TOKEN} {current_messages[0]['content']}"
-
         prompt_text += f"USER:  <image>\n{current_messages[0]['content']}\n\n"
 
         for msg in current_messages[1:]:
@@ -174,30 +155,10 @@ class Llava15LocalHF(backends.Backend):
                 prompt_text = f"USER:  {msg['content']}\n"
             else:
                 prompt_text = f"ASSISTANT:  {msg['content']}\n"
-        prompt_text += "ASSISTANT:  "
-        
-        # conv = conv_templates['llava_v1'].copy()
-        
-        # current_messages[0]['content'] = f"{DEFAULT_IMAGE_TOKEN} {current_messages[0]['content']}"
-        
-        # for msg in current_messages:
-        #     if msg['role'] == 'user':
-        #         conv.append_message(conv.roles[0], msg['content'])
-        #     else:
-        #         conv.append_message(conv.roles[1], msg['content'])
-        # conv.append_message(conv.roles[1], '')
-                
-        # prompt_text = conv.get_prompt()
-        
-        # input_ids = tokenizer_image_token(prompt_text, 
-        #                                   self.tokenizer, 
-        #                                   IMAGE_TOKEN_INDEX, 
-        #                                   return_tensors='pt').unsqueeze(0).to(self.device)
-        
+        prompt_text += "ASSISTANT:  "       
         
         inputs = self.processor(prompt_text, raw_image, return_tensors='pt').to(self.device)
         
-        # to do: Image path should be added to inputs in some way for logging purposes
         prompt = {"inputs": current_messages, "max_new_tokens": max_new_tokens,
                     "temperature": self.temperature, "image": imgs[0]}
 
@@ -211,9 +172,7 @@ class Llava15LocalHF(backends.Backend):
             ).to(self.device)
             
         decoded_output = self.processor.decode(output_ids[0][2:], skip_special_tokens=True)
-
         decoded_output = decoded_output.strip()
-
         response = {"response": decoded_output}
         
         response_text = decoded_output
