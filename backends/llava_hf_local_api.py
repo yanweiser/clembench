@@ -11,19 +11,22 @@ import requests
 from io import BytesIO
 
 
-from local_llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
-from local_llava.conversation import conv_templates, SeparatorStyle
-from local_llava.model.builder import load_pretrained_model
-from local_llava.utils import disable_torch_init
-from local_llava.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
+# from local_llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
+# from local_llava.conversation import conv_templates, SeparatorStyle
+# from local_llava.model.builder import load_pretrained_model
+# from local_llava.utils import disable_torch_init
+# from local_llava.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
+
+from transformers import LlavaForConditionalGeneration, AutoProcessor
 
 
 
 
 logger = backends.get_logger(__name__)
 
-LLAVA_1_5 = "llava-v1.5-7b"
-LLAVA_1_5_BIG = "llava-v1.5-13b"
+LLAVA_1_5 = "llava-1.5-7b-hf"
+LLAVA_1_5_BIG = "llava-1.5-13b-hf"
+# llava-v1.5-13b-hf
 
 SUPPORTED_MODELS = [LLAVA_1_5, LLAVA_1_5_BIG]
 
@@ -49,21 +52,31 @@ class Llava15LocalHF(backends.Backend):
             # create root/data:
             os.mkdir(root_data_path)
         CACHE_DIR = os.path.join(root_data_path, "huggingface_cache")
-        OFFLOAD_DIR = os.path.join(root_data_path, "offload")
+        # OFFLOAD_DIR = os.path.join(root_data_path, "offload")
 
         # full HF model id string:
-        hf_id_str = f"liuhaotian/{model_name.capitalize()}"
+        hf_id_str = f"llava-hf/{model_name.capitalize()}"
         # load processor and model:
         print(f'loading model {hf_id_str}')
-        self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
-            model_path=hf_id_str,
-            model_base=None,
-            model_name=get_model_name_from_path(hf_id_str),
+        # self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
+        #     model_path=hf_id_str,
+        #     model_base=None,
+        #     model_name=get_model_name_from_path(hf_id_str),
+        #     token=self.api_key,
+        #     cache_dir = CACHE_DIR,
+        #     device_map = 'auto',
+        #     torch_dtype = 'auto'
+        # )
+        self.model = LlavaForConditionalGeneration.from_pretrained(
+            hf_id_str, 
+            torch_dtype='auto', 
+            cache_dir = CACHE_DIR, 
             token=self.api_key,
-            cache_dir = CACHE_DIR,
-            device_map = 'auto',
-            torch_dtype = 'auto'
+            device_map = 'auto'
         )
+        
+        self.processor = AutoProcessor.from_pretrained(hf_id_str, cache_dir = CACHE_DIR, device_map = 'auto')
+        
         # use CUDA if available:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_name = model_name
@@ -126,11 +139,11 @@ class Llava15LocalHF(backends.Backend):
             elif msg_idx > 0 and message['role'] == "assistant" and current_messages[msg_idx - 1]['role'] == "assistant":
                 current_messages[msg_idx - 1]['content'] += f" {message['content']}"
                 del current_messages[msg_idx]
-        assert len(imgs) == 1, 'exactly one Image should be passed to the model'
+        # assert len(imgs) == 1, 'exactly one Image should be passed to the model'
 
         # load image
         raw_image = self.load_image(imgs[0]) # to-do: should images be read via local path or internet request?
-        image_tensor = self.image_processor.preprocess(raw_image, return_tensors='pt')['pixel_values'].half().to(self.device)
+        # image_tensor = self.image_processor.preprocess(raw_image, return_tensors='pt')['pixel_values'].half().to(self.device)
 
         # prompt template
         # USER:
@@ -154,33 +167,35 @@ class Llava15LocalHF(backends.Backend):
         
 #         current_messages[0]['content'] = f"{DEFAULT_IMAGE_TOKEN} {current_messages[0]['content']}"
 
-#         prompt_text += f"USER:\n{DEFAULT_IMAGE_TOKEN}\n{current_messages[0]['content']}\n\n"
+        prompt_text += f"USER:  <image>\n{current_messages[0]['content']}\n\n"
 
-#         for msg in current_messages[1:]:
-#             if msg['role'] == 'user':
-#                 prompt_text = f"USER:\n{msg['content']}\n\n"
-#             else:
-#                 prompt_text = f"ASSISTANT:\n{msg['content']}\n\n"
-#         prompt_text += "ASSISTANT:\n"
-        
-        conv = conv_templates['llava_v1'].copy()
-        
-        current_messages[0]['content'] = f"{DEFAULT_IMAGE_TOKEN} {current_messages[0]['content']}"
-        
-        for msg in current_messages:
+        for msg in current_messages[1:]:
             if msg['role'] == 'user':
-                conv.append_message(conv.roles[0], msg['content'])
+                prompt_text = f"USER:  {msg['content']}\n"
             else:
-                conv.append_message(conv.roles[1], msg['content'])
-        conv.append_message(conv.roles[1], '')
-                
-        prompt_text = conv.get_prompt()
+                prompt_text = f"ASSISTANT:  {msg['content']}\n"
+        prompt_text += "ASSISTANT:  "
         
-        input_ids = tokenizer_image_token(prompt_text, 
-                                          self.tokenizer, 
-                                          IMAGE_TOKEN_INDEX, 
-                                          return_tensors='pt').unsqueeze(0).to(self.device)
-      
+        # conv = conv_templates['llava_v1'].copy()
+        
+        # current_messages[0]['content'] = f"{DEFAULT_IMAGE_TOKEN} {current_messages[0]['content']}"
+        
+        # for msg in current_messages:
+        #     if msg['role'] == 'user':
+        #         conv.append_message(conv.roles[0], msg['content'])
+        #     else:
+        #         conv.append_message(conv.roles[1], msg['content'])
+        # conv.append_message(conv.roles[1], '')
+                
+        # prompt_text = conv.get_prompt()
+        
+        # input_ids = tokenizer_image_token(prompt_text, 
+        #                                   self.tokenizer, 
+        #                                   IMAGE_TOKEN_INDEX, 
+        #                                   return_tensors='pt').unsqueeze(0).to(self.device)
+        
+        
+        inputs = self.processor(prompt_text, raw_image, return_tensors='pt').to(self.device)
         
         # to do: Image path should be added to inputs in some way for logging purposes
         prompt = {"inputs": current_messages, "max_new_tokens": max_new_tokens,
@@ -188,22 +203,23 @@ class Llava15LocalHF(backends.Backend):
 
         with torch.inference_mode():
             output_ids = self.model.generate(
-                input_ids,
-                images=image_tensor,
+                **inputs,
                 do_sample=True,
                 temperature=self.temperature,
                 max_new_tokens=max_new_tokens,
                 use_cache=True
             ).to(self.device)
-        output_ids = torch.maximum(output_ids, torch.zeros_like(output_ids))
-        model_output = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
+            
+        decoded_output = self.processor.decode(output_ids[0][2:], skip_special_tokens=True)
 
-        model_output = model_output.strip()
+        decoded_output = decoded_output.strip()
 
-        response = {"response": model_output}
+        response = {"response": decoded_output}
+        
+        response_text = decoded_output
 
         # cull prompt from output:
-        response_text = model_output.split("ASSISTANT:")[-1].strip()
+        response_text = decoded_output.split("ASSISTANT:")[-1].strip()
         # remove EOS token at the end of output:
         if response_text[-4:len(response_text)] == "</s>":
             response_text = response_text[:-4]

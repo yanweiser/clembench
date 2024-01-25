@@ -110,7 +110,6 @@ def lookup_by_model_name(remote_model_name: str) -> Backend:
     :param remote_model_name: the model name for which a supporting backend has to be found
     :return: first backend found that supports the model; otherwise None
     """
-    # print(_loaded_backends)
     for backend in _loaded_backends:
         if backend.supports(remote_model_name):
             return backend
