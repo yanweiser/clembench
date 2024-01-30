@@ -126,7 +126,7 @@ class Llava15LocalHF(backends.Backend):
         # assert len(imgs) == 1, 'exactly one Image should be passed to the model'
 
         # load image
-        raw_image = self.load_image(imgs[0]) # to-do: should images be read via local path or internet request?
+        raw_image = self.load_image(imgs[0]) 
 
         # prompt template
         # USER:
@@ -157,12 +157,15 @@ class Llava15LocalHF(backends.Backend):
                 prompt_text = f"ASSISTANT:  {msg['content']}\n"
         prompt_text += "ASSISTANT:  "       
         
+#         print(prompt_text)
+        
         inputs = self.processor(prompt_text, raw_image, return_tensors='pt').to(self.device)
         
         prompt = {"inputs": current_messages, "max_new_tokens": max_new_tokens,
                     "temperature": self.temperature, "image": imgs[0]}
 
         with torch.inference_mode():
+
             output_ids = self.model.generate(
                 **inputs,
                 do_sample=True,
@@ -170,6 +173,7 @@ class Llava15LocalHF(backends.Backend):
                 max_new_tokens=max_new_tokens,
                 use_cache=True
             ).to(self.device)
+
             
         decoded_output = self.processor.decode(output_ids[0][2:], skip_special_tokens=True)
         decoded_output = decoded_output.strip()
@@ -182,6 +186,8 @@ class Llava15LocalHF(backends.Backend):
         # remove EOS token at the end of output:
         if response_text[-4:len(response_text)] == "</s>":
             response_text = response_text[:-4]
+           
+#         print(response_text)
 
 
         return prompt, response, response_text
