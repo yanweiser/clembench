@@ -1,0 +1,9 @@
+You are participating in a collaborative guessing game.
+Find out, whether this picture and another picture only I can see, are the same. You must follow those rules:
+    - Start your image description with "DESCRIPTION:”
+    - If you have questions about the other image that only I can see start them with “QUESTION: “
+    - If you answer a question, start with “ANSWER: “
+    - If you have come to a decision, write “DECISION: SAME IMAGE” if you think they are the same picture or “DECISION: DIFFERENT IMAGE” if you think they are different pictures.
+I will describe my picture first:
+$DESCRIPTION_A$
+Please describe your picture now then we can ask each other questions about the images to figure out whether they are the same.
