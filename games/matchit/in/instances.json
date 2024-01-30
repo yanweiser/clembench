@@ -5,53 +5,53 @@
             "game_instances": [
                 {
                     "game_id": 0,
-                    "image_a": "games/matchitgame/resources/images/2319242.jpg",
-                    "image_b": "games/matchitgame/resources/images/2319242.jpg"
+                    "image_a": "games/matchit/resources/images/2319242.jpg",
+                    "image_b": "games/matchit/resources/images/2319242.jpg"
                 },
                 {
                     "game_id": 1,
-                    "image_a": "games/matchitgame/resources/images/2387428.jpg",
-                    "image_b": "games/matchitgame/resources/images/2387428.jpg"
+                    "image_a": "games/matchit/resources/images/2387428.jpg",
+                    "image_b": "games/matchit/resources/images/2387428.jpg"
                 },
                 {
                     "game_id": 2,
-                    "image_a": "games/matchitgame/resources/images/2365226.jpg",
-                    "image_b": "games/matchitgame/resources/images/2365226.jpg"
+                    "image_a": "games/matchit/resources/images/2365226.jpg",
+                    "image_b": "games/matchit/resources/images/2365226.jpg"
                 },
                 {
                     "game_id": 3,
-                    "image_a": "games/matchitgame/resources/images/2384274.jpg",
-                    "image_b": "games/matchitgame/resources/images/2384274.jpg"
+                    "image_a": "games/matchit/resources/images/2384274.jpg",
+                    "image_b": "games/matchit/resources/images/2384274.jpg"
                 },
                 {
                     "game_id": 4,
-                    "image_a": "games/matchitgame/resources/images/2356256.jpg",
-                    "image_b": "games/matchitgame/resources/images/2356256.jpg"
+                    "image_a": "games/matchit/resources/images/2356256.jpg",
+                    "image_b": "games/matchit/resources/images/2356256.jpg"
                 },
                 {
                     "game_id": 5,
-                    "image_a": "games/matchitgame/resources/images/2403812.jpg",
-                    "image_b": "games/matchitgame/resources/images/2403812.jpg"
+                    "image_a": "games/matchit/resources/images/2403812.jpg",
+                    "image_b": "games/matchit/resources/images/2403812.jpg"
                 },
                 {
                     "game_id": 6,
-                    "image_a": "games/matchitgame/resources/images/107996.jpg",
-                    "image_b": "games/matchitgame/resources/images/107996.jpg"
+                    "image_a": "games/matchit/resources/images/107996.jpg",
+                    "image_b": "games/matchit/resources/images/107996.jpg"
                 },
                 {
                     "game_id": 7,
-                    "image_a": "games/matchitgame/resources/images/2403745.jpg",
-                    "image_b": "games/matchitgame/resources/images/2403745.jpg"
+                    "image_a": "games/matchit/resources/images/2403745.jpg",
+                    "image_b": "games/matchit/resources/images/2403745.jpg"
                 },
                 {
                     "game_id": 8,
-                    "image_a": "games/matchitgame/resources/images/2392950.jpg",
-                    "image_b": "games/matchitgame/resources/images/2392950.jpg"
+                    "image_a": "games/matchit/resources/images/2392950.jpg",
+                    "image_b": "games/matchit/resources/images/2392950.jpg"
                 },
                 {
                     "game_id": 9,
-                    "image_a": "games/matchitgame/resources/images/2318948.jpg",
-                    "image_b": "games/matchitgame/resources/images/2318948.jpg"
+                    "image_a": "games/matchit/resources/images/2318948.jpg",
+                    "image_b": "games/matchit/resources/images/2318948.jpg"
                 }
             ],
             "prompt_a": "You are participating in a collaborative guessing game.\nFind out, whether this picture and another picture only I can see, are the same. You must follow those rules:\n    - Start your image description with \"DESCRIPTION:”\n    - If you have questions about the other image that only I can see start them with “QUESTION: “\n    - If you answer a question, start with “ANSWER: “\n    - If you have come to a decision, write “DECISION: SAME IMAGE” if you think they are the same picture or “DECISION: DIFFERENT IMAGE” if you think they are different pictures.\nPlease describe your image first. Then, I will provide my description and we can ask each other questions about the images to figure out whether they are the same.",
