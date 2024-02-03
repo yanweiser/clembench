@@ -152,7 +152,7 @@ class Llava15LocalHF(backends.Backend):
 
         for msg in current_messages[1:]:
             if msg['role'] == 'user':
-                prompt_text = f"USER:  {msg['content']}\n"
+                prompt_text = f"USER:  <image>\n{msg['content']}\n"
             else:
                 prompt_text = f"ASSISTANT:  {msg['content']}\n"
         prompt_text += "ASSISTANT:  "       
