@@ -25,17 +25,14 @@ class Speaker(Player):
         # LLMS, use model_name="programmatic"
         super().__init__(model_name)
         #self.model_name: str = model_name
-        #self.initial_letter: str = letter
-
         # a list to keep the dialogue history
         # self.history: List = []
 
-    # implement this method as you prefer, with these same arguments
     def _custom_response(self, messages, turn_idx) -> str:
         """Return yes or no randomly."""
         k = random.randint(0, 1)   
         if k == 0:
-            return "ANSWER: No"
+            return "Noii"
         else:
             return "Yes" 
     
@@ -83,81 +80,84 @@ class Cloudgame(DialogueGameMaster):
         self.add_player(self.judge)
 
 
-    
+    #def _on_before_game(self):
+        # add prompt to speaker message history
+        #self.add_user_message(self.speaker, self.prompt, image = self.image)
+        #self.add_user_message(self.judge, "The game starts here.")
+ 
     def _does_game_proceed(self):
-        if len(self.turns) == 0:
+        if not self.aborted and len(self.turns) <= 1:
             return True
         return False
-    
-    def _on_before_game(self):
-        # add prompt to speaker message history
-        self.add_user_message(self.speaker, self.prompt, image = self.image)
-        self.add_user_message(self.judge, "The game starts here.")
-    
-# TODO add to _validate_player_response: do not automatically return True (important for when not mock)
+
+   
+    def _on_before_turn(self, turn_idx: int):
+        
+        if turn_idx == 0:
+            self.add_user_message(self.speaker, self.prompt, image = self.image)
+            self.add_user_message(self.judge, "Do you think this is correct?")
+        if turn_idx == 1:
+            self.add_user_message(self.speaker, "Are there any chickens in the picture?")
+            self.add_user_message(self.judge, "Do you think this is correct?")
+
 # TODO add played or aborted metric to compute_scores (see prev. todo)
         
     def _validate_player_response(self, player: Player, answer: str) -> bool:
         """Check if the utterance conforms to rules (cloudgame specific)."""
-        # true, wenn es wolken gibt und ja oder keine und nein
 
+        # there should never be a chicken in a picture
+        if len(self.turns) != 0:
+            true_answer = "no"
+        
         if player == self.speaker:
             true_answer = self.experiment
             split_answer = answer.strip(".").split(" ")
-
-            if len(split_answer) != 2:
+            # only one word allowed
+            if len(split_answer) != 1:
                 self.success = False
                 self.aborted = True
                 self.log_to_self("Invalid word count", "Game aborted.")
                 return False
-            
-            if not answer.startswith("Answer:"):
-                self.success = False
-                self.aborted = True
-                self.log_to_self("Invalid format", "Game aborted.")
-                return False
-
-            if answer[1].lower() not in self.allowed_words:
+    
+            # if not answer.startswith("Answer:"):
+            #     self.success = False
+            #     self.aborted = True
+            #     self.log_to_self("Invalid format", "Game aborted.")
+            #     return False
+            # only yes or no allowed
+            if answer.lower().strip(".") not in self.allowed_words:
                 self.success = False
                 self.aborted = True
                 self.log_to_self("Invalid words", "Game aborted.")
                 return False
-            
-            elif answer[1].lower() != true_answer:
+            # is anwer correct?
+            elif answer.lower() != true_answer:
                 self.success = False
-          
-        return True
+            
+            self.log_to_self("Valid format", "Continue")
 
-        # if player == Speaker:
-        #     if answer.lower() not in self.allowed_words:
-        #         return False
-            
-        # if player == self.judge:
-        #     if answer != "That seems right.":
-        #         self.success == False
-        #         return True
-            
-        # if player == Judge:
-        #     if answer != "That seems right.":
-        #         return False
-            
+        return True
 
     
     def _after_add_player_response(self, player: Player, utterance: str):
-        if player == self.speaker:
-            self.add_user_message(self.judge, utterance)
+        # if player == self.speaker:
+        #     self.add_user_message(self.judge, utterance)
         if player == self.judge:
             self.add_user_message(self.speaker, utterance)
         
     def _on_after_turn(self, turn_idx: int):
 
         self.log_to_self(type_ = "judgement", value = self.success)
-        self.log_to_self(type_ = "aborted", value = self.aborted)
+        if self.aborted:
+            self.log_to_self(type_ = "aborted", value = self.aborted)
         self.turns.append(self.success)
 
-    def _on_after_game(self):
-        self.log_to_self(type_ = "End of game", value = "Game finished.")
+    # def _on_after_game(self):
+    #     self.log_to_self(type_ = "End of game", value = "Game finished.")
 
+
+
+    ########## Multimodal specific functions:
 
     def add_message(self, player: Player, utterance: str, role: str, image = None):
         if image is None:
