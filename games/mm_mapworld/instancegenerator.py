@@ -12,24 +12,24 @@ GRAPH_SIZE = 8
 GRID_SIZE = (4,4)
 SEED = 42
 RANDOM_PATH = 'random_test_images'
-IMAGE_PATH = os.path.join('resources', 'images')
+IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
 
 def create_random_instanes():
     instances = []
     np.random.seed(SEED)
     path = os.path.join(IMAGE_PATH, RANDOM_PATH)
-    imgs = np.array([f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))], dtype=object)
+    imgs = np.array([os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))], dtype=object)
     for i in range(NUM_INSTANCES):
         map_images = np.random.choice(imgs, size=GRAPH_SIZE)
         map = AbstractMap(*GRID_SIZE, GRAPH_SIZE)
-        nodes = [n for n in map.G]
+        nodes = [str(n) for n in map.G]
         edges = list(map.G.edges())
         rev_edges = [(edge[1], edge[0]) for edge in edges]
         edges.extend(rev_edges)
-        img_ref = {nodes[i]: map_images[i] for i in range(GRAPH_SIZE)}
+        img_ref = {nodes[i]: str(map_images[i]) for i in range(GRAPH_SIZE)}
         instances.append({
             'nodes': nodes,
-            'edges': edges,
+            'edges': [str(e) for e in edges],
             'imgs': img_ref
         })
     return instances
