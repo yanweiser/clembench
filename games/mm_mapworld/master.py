@@ -8,8 +8,12 @@ from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster
 from clemgame import get_logger
 from clemgame.clemgame import Player
 
-from instancegenerator import GAME_NAME
+from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC_REQUEST_COUNT, \
+    METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_COUNT_PARSED, METRIC_REQUEST_SUCCESS, BENCH_SCORE
 
+
+
+GAME_NAME = 'mm_mapworld'
 MAX_TURNS = 15
 
 
@@ -131,7 +135,7 @@ class MmMapWorld(DialogueGameMaster):
         return cardinals
     
     def cardinal_room_change(self, cardinal):
-        delta = self.delta_to_cardinal(cardinal)
+        delta = self.cardinal_to_delta(cardinal)
         new_room = (self.current_room[0] + delta[0], self.current_room[1] + delta[1])
         if (self.current_room, new_room) in self.edges:
             self.current_room = new_room
@@ -199,9 +203,10 @@ class MmMapWorld(DialogueGameMaster):
         
         without_move = answer.replace('MOVE:', '')
         words = without_move.strip().split()
-
+        new_dir = words[0]
+#         self.log_to_self("got directions", new_dir)
         # the following word should be one of ['north', 'east', 'south', 'west', 'stop']
-        if words[0] in ['north', 'east', 'south', 'west', 'stop']:
+        if new_dir not in ['north', 'east', 'south', 'west', 'stop']:
             self.aborted = True
             self.log_to_self("Invalid direction", "Game aborted.")
             return False
@@ -250,6 +255,28 @@ class MmMapWorld(DialogueGameMaster):
 
     def add_user_message(self, player: Player, utterance: str, image = None):
         self.add_message(player, utterance, role="user", image= image)
+        
+        
+    ####### scoring
+    
+    def compute_scores(self, episode_interactions) -> None:
+        
+        for turn in episode_interactions["turns"]:
+            aborted = False
+            
+            for event in turn:
+                action = event["action"]
+                if action["type"] == "aborted":
+                    if action["content"]:
+                        aborted = True
+                        
+                        
+            if aborted:
+                self.log_episode_score(METRIC_ABORTED, 1)
+                self.log_episode_score(METRIC_SUCCESS, 0)
+                self.log_episode_score(METRIC_LOSE, 0)
+
+
 
 
 

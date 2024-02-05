@@ -3,5 +3,5 @@ Your task is to explore all the rooms.
 In each room you will be told in which cardinal direction you will be able to move.
 Your answer needs to be in the following format: "MOVE: <direction>".
 Replace <direction> by an appropriate cardinal direction ("north", "east", "south" or "west").
-If you think you have seem all the rooms, answer "MOVE: stop" instead.
+If you think you have seen all the rooms, answer "MOVE: stop" instead.
 From your current room you can move in the following directions: [DIR]
