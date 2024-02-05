@@ -2,6 +2,7 @@ from clemgame.clemgame import GameInstanceGenerator
 import numpy as np
 from maps import AbstractMap
 import os
+import random
 
 
 # set the name of the game in the script, as you named the directory
@@ -17,6 +18,7 @@ IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
 def create_random_instanes():
     instances = []
     np.random.seed(SEED)
+    random.seed(SEED)
     path = os.path.join(IMAGE_PATH, RANDOM_PATH)
     imgs = np.array([os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))], dtype=object)
     for i in range(NUM_INSTANCES):
@@ -30,7 +32,8 @@ def create_random_instanes():
         instances.append({
             'nodes': nodes,
             'edges': [str(e) for e in edges],
-            'imgs': img_ref
+            'imgs': img_ref,
+            'start': random.choice(nodes)
         })
     return instances
         
