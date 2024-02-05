@@ -212,6 +212,11 @@ class MmMapWorld(DialogueGameMaster):
             return False
         # everything after that can be disregarded
         
+        if new_dir == 'stop':
+            self.stop = True
+            self.log_to_self("stop", True)
+            
+        
         # TBD:
         # check if the given direction is a valid one? (Is there an edge from the current
         # room to the next one?)
@@ -261,21 +266,38 @@ class MmMapWorld(DialogueGameMaster):
     
     def compute_scores(self, episode_interactions) -> None:
         
+        moves = 0
+        stopped = False
+        
         for turn in episode_interactions["turns"]:
             aborted = False
+            
             
             for event in turn:
                 action = event["action"]
                 if action["type"] == "aborted":
                     if action["content"]:
                         aborted = True
+                if action['type'] == "move":
+                    pure = action['content'].replace('from', '')
+                    pure = pure.split('to')
+                    if not pure[0].strip() == pure[1].strip():
+                        moves += 1
+                if action['type'] == "stop":
+                    if action["content"]:
+                        stopped = True
                         
                         
-            if aborted:
-                self.log_episode_score(METRIC_ABORTED, 1)
-                self.log_episode_score(METRIC_SUCCESS, 0)
-                self.log_episode_score(METRIC_LOSE, 0)
-
+        if aborted:
+            self.log_episode_score(METRIC_ABORTED, 1)
+            self.log_episode_score(METRIC_SUCCESS, 0)
+            self.log_episode_score(METRIC_LOSE, 0)
+        else:
+            self.log_episode_score(METRIC_ABORTED, 0)
+            
+        self.log_episode_score('moves', moves)
+        self.log_episode_score('stopped', int(stopped))
+                
 
 
 
