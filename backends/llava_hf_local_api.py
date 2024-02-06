@@ -147,17 +147,18 @@ class Llava15LocalHF(backends.Backend):
 
         assert current_messages, "messages cannot only contain a system prompt"
         assert current_messages[0]['role'] == 'user', "You need to start dialogue on a User entry"
+        assert current_messages[-1]['role'] == 'user', "For an API call, the last message needs to be by a user"
         
-        prompt_text += f"USER:  <image>\n{current_messages[0]['content']}\n\n"
+        current_messages[-1]['content'] = f"<image>\n{current_messages[-1]['content']}"
+        prompt_text = ""
 
-        for msg in current_messages[1:]:
+        for msg in current_messages:
             if msg['role'] == 'user':
-                prompt_text = f"USER:  <image>\n{msg['content']}\n"
+                prompt_text += f"USER:  {msg['content']}\n"
             else:
-                prompt_text = f"ASSISTANT:  {msg['content']}\n"
+                prompt_text += f"ASSISTANT:  {msg['content']}\n"
         prompt_text += "ASSISTANT:  "       
         
-#         print(prompt_text)
         
         inputs = self.processor(prompt_text, raw_image, return_tensors='pt').to(self.device)
         
