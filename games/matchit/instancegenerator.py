@@ -17,7 +17,7 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
         prompt_a = self.load_template('resources/initial_prompts/player_a_prompt.template')
         prompt_b = self.load_template('resources/initial_prompts/player_b_prompt.template')
 
-        experiments = {"same_image": (self.load_csv("resources/image_pairs/same_image_10_test.csv"), "same image")} # "similar_image", "different_image"
+        experiments = {"same_image": (self.load_csv("resources/image_pairs/same_image_10_test.csv"), "same image"), "similar_image": (self.load_csv("resources/image_pairs/similar_image_10_test.csv"), "different image"), "different_image": (self.load_csv("resources/image_pairs/different_image_10_test.csv"), "different image")}
 
         print(experiments)
 
@@ -35,8 +35,14 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
                 game_id = game_id
                 instance = self.add_game_instance(experiment, game_id)
                 image_a, image_b = inst[0].strip(), inst[1].strip()
-                instance["image_a"] = "games/matchit/resources/images/" + image_a
-                instance["image_b"] = "games/matchit/resources/images/" + image_b
+                if image_a.startswith("http"):
+                    instance["image_a"] = image_a
+                else:
+                    instance["image_a"] = "games/matchit/resources/images/" + image_a
+                if image_b.startswith("http"):
+                    instance["image_b"] = image_b
+                else:
+                    instance["image_b"] = "games/matchit/resources/images/" + image_b
                 
                 max_turns = max_turns
 

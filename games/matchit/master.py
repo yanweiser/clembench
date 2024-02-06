@@ -1,19 +1,19 @@
 # was zu tun ist:
-
-# erst mal einfach nur den output ungefiltert als input geben (evtl. flags entfernen, das spart tokens, andererseits zerstört es die Strukture)
     # TODO later: interject with "do you have a question?" -> not one questioner and one answerer
     # und immer Antwort und neue Frage conkatenieren und weitergeben (also gewissermaßen 2x prompten)
 
 
-# Erinnerung nach 10 turns: Komme jetzt zu einer Entscheidung
-
+# TODO: Erinnerung nach 10 turns: Komme jetzt zu einer Entscheidung
 
 # TODO: wie mache ich das, dass im prompt von B die Beschreibung von a ist? ist das vielleicht ganz einfach?
 
-# TODO: Score (#turns, success or not)
+# TODO: Score (#turns, success or not) ???
 
 # TODO : don't give message to other player, if it's a DECISION
 
+# TODO: in validate: irgendwie nicht erlauben, dass mehr als eine Entscheidung getroffen wird?
+
+# TODO: scoring mit key logging -> episode score Sachen außerhalb von turns loggen
 
 from clemgame.clemgame import Player, GameMaster, GameBenchmark, DialogueGameMaster
 from clemgame import metrics as ms
@@ -120,7 +120,6 @@ class MatchIt(DialogueGameMaster):
             return False
         # FAlls eine Entscheidung gefällt wurde: prüfen bitte
         if first_word == "DECISION:":
-        # TODO: irgendwie nicht erlauben, dass mehr als eine Entscheidung getroffen wird?
             if player == self.player_a:
                 self.decision_a = True
                 if self.solution in utterance.lower():
