@@ -9,7 +9,9 @@
 
 # TODO: Score (#turns, success or not) ???
 
-# TODO : don't give message to other player, if it's a DECISION
+# TODO: don't give message to other player, if it's a DECISION
+
+# TODO: log all parts of generated response (multiple flags per turn!)
 
 # TODO: in validate: irgendwie nicht erlauben, dass mehr als eine Entscheidung getroffen wird?
 
@@ -111,32 +113,36 @@ class MatchIt(DialogueGameMaster):
 
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
 
-        first_word = utterance.split()[0]
-        if first_word in self.flags:
-            self.log_to_self("valid format", "continue")
-        else:
-            self.log_to_self("Invalid format.", "abort")
-            self.aborted = True
-            return False
-        # FAlls eine Entscheidung gefällt wurde: prüfen bitte
-        if first_word == "DECISION:":
-            if player == self.player_a:
-                self.decision_a = True
-                if self.solution in utterance.lower():
-                    self.success_a == True
-                    self.log_to_self("Decision Player A", "success")
-                else: 
-                    self.success_a == False
-                    self.log_to_self("Decision Player A", "lose")
-            else:
-                self.decision_b = True
-                if self.solution in utterance.lower():
-                    self.success_b == True
-                    self.log_to_self("Decision Player B", "success")
-                   
-                else: 
-                    self.success_b == False
-                    self.log_to_self("Decision Player B", "loss")
+        utt_parts = list(filter(None, utterance.split("\n"))) #filter to be sure that there are no empty strings
+        utt_flags = []
+        for part in utt_parts:
+            first_word = part.split()[0]
+            if first_word not in self.flags:
+                self.log_to_self("invalid format", "abort")
+                self.aborted = True
+                return False
+            else: 
+                utt_flags.append(first_word.lower())
+            
+            if first_word == "DECISION:":
+                if player == self.player_a:
+                    self.decision_a = True
+                    if self.solution in utterance.lower():
+                        self.success_a == True
+                        self.log_to_self("Decision Player A", "success")
+                    else: 
+                        self.success_a == False
+                        self.log_to_self("Decision Player A", "loss")
+                else:
+                    self.decision_b = True
+                    if self.solution in utterance.lower():
+                        self.success_b == True
+                        self.log_to_self("Decision Player B", "success")
+                    else: 
+                        self.success_b == False
+                        self.log_to_self("Decision Player B", "loss")
+        
+        self.log_to_self("valid format", str(utt_flags))        
         return True
 
 
@@ -192,29 +198,31 @@ class MatchIt(DialogueGameMaster):
         #             "content": "success"
         #         }
         all_turn_scores = []
+        success_a = False
+        success_b = False
+        aborted = False
         for turn_idx, turn in enumerate(episode_interactions["turns"]):
-            turn_score_dict = {"request_count": 1 } #,"violated_request_count": None, "parsed_request_count": None}
-            success_a = False
-            success_b = False
-            aborted = False
+            turn_score_dict = {"request_count": 0, "violated_request_count" : 0, "parsed_request_count" : 0} 
 
             for event in turn:
                 action = event["action"]
                 # parsed requests
                 if action["type"] == "invalid format":
-                    turn_score_dict["violated_request_count"] = 1
-                    turn_score_dict["parsed_request_count"] = 0
+                    turn_score_dict["violated_request_count"] += 1
+                    turn_score_dict["request_count"] += 1
                 elif action["type"] == "valid format":
-                    turn_score_dict["violated_request_count"] = 0
-                    turn_score_dict["parsed_request_count"] = 1
+                    turn_score_dict["parsed_request_count"] += 1
+                    turn_score_dict["request_count"] += 1
                 elif action["type"] == "Game over":
                     aborted = True
                 # decision success
                 elif action["type"] == "Decision Player A": # theoretically, this could occur more than once!
                     if action["content"] == "success":
+                        print("success A")
                         success_a = True
                 elif action["type"] == "Decision Player B": # theoretically, this could occur more than once!
                     if action["content"] == "success":
+                        print("success B")
                         success_b = True
                         
             # log turn request scores   
@@ -261,7 +269,7 @@ class MatchIt(DialogueGameMaster):
                     self.log_episode_score(ms.METRIC_LOSE, 0)
                     # Game-specific metrics
                     self.log_episode_score(ms.BENCH_SCORE, 100)  # metric not applicable
-                
+                print("next turn")
 
 
 
