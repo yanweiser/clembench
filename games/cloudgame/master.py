@@ -32,7 +32,7 @@ class Speaker(Player):
         """Return yes or no randomly."""
         k = random.randint(0, 1)   
         if k == 0:
-            return "Noii"
+            return "No"
         else:
             return "Yes" 
     
@@ -100,7 +100,7 @@ class Cloudgame(DialogueGameMaster):
             self.add_user_message(self.speaker, "Are there any chickens in the picture?")
             self.add_user_message(self.judge, "Do you think this is correct?")
 
-# TODO add played or aborted metric to compute_scores (see prev. todo)
+
         
     def _validate_player_response(self, player: Player, answer: str) -> bool:
         """Check if the utterance conforms to rules (cloudgame specific)."""
@@ -152,8 +152,7 @@ class Cloudgame(DialogueGameMaster):
             self.log_to_self(type_ = "aborted", value = self.aborted)
         self.turns.append(self.success)
 
-    # def _on_after_game(self):
-    #     self.log_to_self(type_ = "End of game", value = "Game finished.")
+
 
 
 
@@ -174,25 +173,45 @@ class Cloudgame(DialogueGameMaster):
 
 
     def compute_scores(self, episode_interactions) -> None:
-        # TODO: bencheval.py funktioniert damit noch nicht
 
-        for t_index, turn in enumerate(episode_interactions["turns"]):
+        all_turn_scores = []
+        for turn_idx, turn in enumerate(episode_interactions["turns"]):
             # player_1_message = turn[1]['action']['content']
-            # jetzt kommen eigentlich die Abfragen
             score = 0
+            turn_score_dict = {"request_count": 0, "violated_request_count": 0, "parsed_request_count": 0}
+            aborted = False
+
             for event in turn:
                 action = event["action"]
 
-                if action["type"] == "aborted":
-                    if action["content"]:
-                        aborted = True
-                        self.log_episode_score(METRIC_ABORTED, 1)
-                    else:
-                        aborted = False
-                        self.log_episode_score(METRIC_ABORTED, 0)
-    
+
+                if action["type"] == "get message":
+                    turn_score_dict["request_count"] += 1
+                if action["type"] == "Valid format":
+                    turn_score_dict["parsed_request_count"] += 1
+                if action["type"] == "Invalid word count":
+                    turn_score_dict["violated_request_count"] += 1
+                    aborted = True
+                if action["type"] == "Invalid words":
+                    turn_score_dict["violated_request_count"] = 1
+                    aborted = True
                 if action["type"] == "judgement":
                     score = action["content"]
+
+         # log turn request scores   
+            self.log_turn_score(turn_idx, METRIC_REQUEST_COUNT_VIOLATED, turn_score_dict["violated_request_count"])
+            self.log_turn_score(turn_idx, METRIC_REQUEST_COUNT_PARSED, turn_score_dict["parsed_request_count"])
+            self.log_turn_score(turn_idx, METRIC_REQUEST_COUNT, turn_score_dict["request_count"])
+
+            all_turn_scores.append(turn_score_dict)
+
+        violated_request_count = sum([turn["violated_request_count"] for turn in all_turn_scores])
+        self.log_episode_score(ms.METRIC_REQUEST_COUNT_VIOLATED, violated_request_count)
+        parsed_request_count = sum([turn["parsed_request_count"] for turn in all_turn_scores])
+        self.log_episode_score(ms.METRIC_REQUEST_COUNT_PARSED, parsed_request_count)
+        request_count = sum([turn["request_count"] for turn in all_turn_scores])
+        self.log_episode_score(ms.METRIC_REQUEST_COUNT, request_count)
+
         if aborted:
             self.log_episode_score(METRIC_ABORTED, 1)
             self.log_episode_score(METRIC_SUCCESS, 0)
@@ -205,11 +224,6 @@ class Cloudgame(DialogueGameMaster):
             self.log_episode_score(METRIC_LOSE, 0 if score else 1)
             self.log_episode_score(BENCH_SCORE, 100)
         
-        # dummy values:
-        self.log_episode_score(METRIC_REQUEST_COUNT, 1)
-        self.log_episode_score(METRIC_REQUEST_COUNT_PARSED, 1)
-        self.log_episode_score(METRIC_REQUEST_COUNT_VIOLATED,1)
-        self.log_episode_score(METRIC_REQUEST_SUCCESS, 1)
 
 
 
