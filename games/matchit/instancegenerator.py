@@ -1,7 +1,4 @@
 import sys
-
-sys.path.append("/Users/antonia/Documents/Unizeug/2023_SoSe_IM/clembench")
-
 from clemgame.clemgame import GameInstanceGenerator
 
 GAME_NAME = "matchit"
