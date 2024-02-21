@@ -1,5 +1,12 @@
 import random
 from typing import List, Dict, Tuple
+import sys
+import os
+
+cwd = os.getcwd()
+additional_path = os.path.join(cwd, "games", "mm_mapworld")
+
+sys.path.append(additional_path)
 
 import utils
 
@@ -52,7 +59,7 @@ class PathDescriber(Player):
         self.start = instance_data["start"]
         self.current_room = instance_data["start"]
         self.init_prompt = instance_data["prompt"]
-        self.visited_nodes=[self.current_node]
+        self.visited_nodes=[self.current_room]
         
 
     def get_available_moves(self, node):
@@ -86,7 +93,7 @@ class PathDescriber(Player):
             response = "You have made a step and entered a different room. "
         response += "Currently available directions: "
         response += ", ".join(available_directions)
-        response += " What is your next instruction?"
+        response += ". What is your next instruction?"
         return response
 
         
@@ -128,7 +135,7 @@ class MmMapWorld(DialogueGameMaster):
         self.start = instance_data["start"]
         self.current_room = instance_data["start"]
         self.init_prompt = game_instance["prompt"]
-        self.visited_nodes=[self.current_node]
+        self.visited_nodes=[self.current_room]
 
         self.describer = PathDescriber('mock', instance_data)
         self.walker = PathWalker(self.player_backends[0])
@@ -137,7 +144,7 @@ class MmMapWorld(DialogueGameMaster):
 
     def _on_before_game(self):
         start_directions = self.describer.get_available_directions(self.describer.start)
-        prompt = self.describer.prompt.replace('$INITIAL_DIRECTIONS$', ', '.join(start_directions))
+        prompt = self.describer.init_prompt.replace('$INITIAL_DIRECTIONS$', ', '.join(start_directions))
         initial_image = self.describer.imgs[self.start]
         # add initial prompt to dialogue
         self.add_user_message(self.walker, prompt, image = initial_image)
