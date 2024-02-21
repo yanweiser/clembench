@@ -1,7 +1,23 @@
-You are shown the room you are currently in. This room is connected to other rooms. 
-Your task is to explore all the rooms.
-In each room you will be told in which cardinal direction you will be able to move.
-Your answer needs to be in the following format: "MOVE: <direction>".
-Replace <direction> by an appropriate cardinal direction ("north", "east", "south" or "west").
-If you think you have seen all the rooms, answer "MOVE: stop" instead.
-From your current room you can move in the following directions: [DIR]
+Let us play a game. The goal is to visit every room on a map with the fewest number of room changes possible. 
+In each room you need to decide the direction to go in. 
+Also, you need to recognize once you have visited all the rooms and choose to stop the game at that point. 
+Here is an example of making steps and stopping:
+
+You are in the initial room. Currently available directions: south, west. What is your next instruction?
+GO: west
+You have made a step and entered a different room. Currently available directions: east, south. What is your next instruction?
+GO: north
+The move is not valid. You are still in the the same room. Currently available directions: east, south. What is your next instruction?
+GO: east
+You have made a step and entered a different room. Currently available directions: south, west. What is your next instruction?
+GO: south
+...
+You have made a step and entered a different room. Currently available directions: south. What is your next instruction?
+DONE
+
+Remember! Your answer needs to follow these constructions: 
+“GO: <direction>”: to make a step, replace direction with one of [north, south, east, west]. 
+“DONE”: This will end the game and you will be graded. To maximize your score you need maximize the number of different rooms you have seen
+and minimize the number of steps you have taken.
+
+The game starts now. You are in the initial room. Currently available directions: $INITIAL_DIRECTIONS$. What is your next instruction?

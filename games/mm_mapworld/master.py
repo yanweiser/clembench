@@ -81,11 +81,12 @@ class PathDescriber(Player):
         invalid_direction = old_room == self.current_room
         available_directions = self.get_available_directions(self.current_room)
         if invalid_direction:
-            response = "The direction you chose was invalid, you are still in the same room. "
+            response = "The move is not valid. You are still in the the same room. "
         else:
-            response = "You entered a new room. "
-        response += "You may go in one of the following directions from here:\n"
+            response = "You have made a step and entered a different room. "
+        response += "Currently available directions: "
         response += ", ".join(available_directions)
+        response += " What is your next instruction?"
         return response
 
         
@@ -136,7 +137,7 @@ class MmMapWorld(DialogueGameMaster):
 
     def _on_before_game(self):
         start_directions = self.describer.get_available_directions(self.describer.start)
-        prompt = self.describer.prompt.replace('[DIR]', ', '.join(start_directions))
+        prompt = self.describer.prompt.replace('$INITIAL_DIRECTIONS$', ', '.join(start_directions))
         initial_image = self.describer.imgs[self.start]
         # add initial prompt to dialogue
         self.add_user_message(self.walker, prompt, image = initial_image)
@@ -153,9 +154,9 @@ class MmMapWorld(DialogueGameMaster):
             # in case we abort we set the next move to None
             self.move = None
             # Check if the answer begins with 'MOVE:'
-            if answer.startswith("STOP"):
+            if answer.startswith("DONE"):
                 self.stop = True
-                self.log_to_self("stop", True)
+                self.log_to_self("DONE", True)
                 return True
             if not answer.startswith("GO:"):
                 self.aborted = True
