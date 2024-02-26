@@ -1,27 +1,24 @@
 from typing import List, Tuple, Dict
 
+from backends import Model
 from clemgame import file_utils
 from clemgame import metrics
-from clemgame.clemgame import GameMaster, GameBenchmark
+from clemgame.clemgame import GameMaster, GameBenchmark, GameScorer
 from clemgame import get_logger
 from games.referencegame.game import ReferenceGame
 import re
 import math
 
 GAME_NAME = "referencegame"
-
 logger = get_logger(__name__)
 
 
 class ReferenceGameMaster(GameMaster):
 
-    def __init__(self, experiment: Dict, player_backends: List[str]):
-        super().__init__(GAME_NAME, experiment, player_backends)
+    def __init__(self, experiment: Dict, player_models: List[Model]):
+        super().__init__(GAME_NAME, experiment, player_models)
         self.experiment = experiment
-        self.player_backends = player_backends
         self.game = None
-        self.player_a_pattern = r'^Expression:\s*(.+)\n*(.+)*$'
-        self.player_b_pattern = r"^Answer:\s*(?!.*\b(?:first|second|third|First|Second|Third)\b.*\b(?:first|second|third)\b).*\b(?:first grid|second grid|first|second|third grid|third|First grid|Second grid|Third grid)\b.*$"
         self.request_count = 0
         self.parsed_request_count = 0
         self.violated_request_count = 0
@@ -34,12 +31,12 @@ class ReferenceGameMaster(GameMaster):
     def _on_setup(self, **game_instance):
         self.game_instance = game_instance
 
-        self.game = ReferenceGame(self.game_instance, self.player_backends)
+        self.game = ReferenceGame(self.game_instance, self.player_models)
 
         self.log_players({
             "GM": "Game master for referencegame",
-            "Player_1": self.player_backends[0],
-            "Player_2": self.player_backends[1]}
+            "Player_1": self.player_models[0].get_name(),
+            "Player_2": self.player_models[1].get_name()}
         )
 
     def setup(self, **kwargs):
@@ -73,16 +70,13 @@ class ReferenceGameMaster(GameMaster):
 
         self.request_count += 1
 
-        player_1_message_matched = False
-        parsed_instruction = ''
-        if player_1_response_text.startswith('Expression:'):
+        if re.match(self.game.player_1_response_pattern, player_1_response_text.lower()):
+            parsed_instruction = ''
             if '\n' in player_1_response_text:
                 parsed_instruction = player_1_response_text.split('\n')[0]
             else:
                 parsed_instruction = player_1_response_text
-            player_1_message_matched = True
 
-        if player_1_message_matched:
             action = {'type': 'parse', 'content': parsed_instruction,
                       'original_content': player_1_response_text}
             self.log_event(from_="GM", to="GM", action=action)
@@ -118,7 +112,7 @@ class ReferenceGameMaster(GameMaster):
         self.request_count += 1
 
         # check if the Player 2 message matches the rule => grid
-        if re.match(self.player_b_pattern, player_2_response_text):
+        if re.match(self.game.player_2_response_pattern, player_2_response_text.lower()):
             self.parsed_request_count += 1
 
             action = {'type': 'parse', 'content': player_2_response_text,
@@ -133,6 +127,17 @@ class ReferenceGameMaster(GameMaster):
 
             self.violated_request_count += 1
             self.aborted_ratio = 1
+
+
+class ReferenceGameScorer(GameScorer):
+
+    def __init__(self, experiment: Dict, game_instance: Dict):
+        super().__init__(GAME_NAME, experiment, game_instance)
+        self.target_grid_name = game_instance["target_grid_name"]
+        self.player_1_response_pattern = r'{}'.format(game_instance["player_1_response_pattern"])
+        self.player_2_response_pattern = r'{}'.format(game_instance["player_2_response_pattern"])
+        self.player_2_response_tag = game_instance["player_2_response_tag"]
+        self.player_1_response_tag = game_instance["player_1_response_tag"]
 
     def compute_scores(self, episode_interactions: Dict) -> None:
 
@@ -161,15 +166,7 @@ class ReferenceGameMaster(GameMaster):
             episode_request_count += 1
 
             # check if the Player 1 message follows the rule
-            player_1_message_matched = False
-            if player_1_message.startswith('Expression:'):
-
-                player_1_message_matched = True
-                if '\n' in player_1_message:
-                    parsed_instruction = player_1_message.split('\n')[0]
-                    player_1_message = parsed_instruction
-
-            if player_1_message_matched:
+            if re.match(self.player_1_response_pattern, player_1_message.lower()):
                 turn_parsed_request_count += 1
                 episode_parsed_request_count += 1
             else:
@@ -186,13 +183,12 @@ class ReferenceGameMaster(GameMaster):
             episode_request_count += 1
 
             # check if the Player 2 message matches the rule -> start "Answer: ..."
-            match = re.compile(self.player_b_pattern).match(player_2_message)
-            if match:
+            if re.match(self.player_2_response_pattern, player_2_message.lower()):
                 turn_parsed_request_count += 1
                 episode_parsed_request_count += 1
 
                 # check if the target grid number matches the output from Player 2
-                if self.game.target_grid_name.lower() in player_2_message.replace('Answer:', '').lower():
+                if self.target_grid_name.lower() in player_2_message.lower().replace(self.player_2_response_tag, '').strip():
                     success = 1
                 else:
                     lost_count = 1
@@ -202,14 +198,13 @@ class ReferenceGameMaster(GameMaster):
                 aborted = True
                 break
 
-
             # log the Player 1 - message length
-            expression_length = len(player_1_message.replace('Expression:', '').strip())
+            expression_length = len(player_1_message.lower().replace(self.player_1_response_tag, '').strip())
             self.log_turn_score(t_index, 'Generated Expression Length', expression_length)
             expression_length_sum += expression_length
 
             # log the Player 1 - number of tokens in the generated expression
-            number_of_tokens = len(player_1_message.replace('Expression:', '').strip().split(' '))
+            number_of_tokens = len(player_1_message.lower().replace(self.player_1_response_tag, '').strip().split(' '))
             self.log_turn_score(t_index, 'Generated Expression Number of Tokens', number_of_tokens)
             expression_number_of_tokens += number_of_tokens
 
@@ -274,16 +269,6 @@ class ReferenceGameMaster(GameMaster):
             self.log_episode_score(metrics.METRIC_REQUEST_SUCCESS, 0)
 
 
-
-
-
-
-    def _get_recorded_turns(self, records: Dict) -> List[int]:
-        return list(range(len(records["turns"])))
-
-
-
-
 class ReferenceGameBenchmark(GameBenchmark):
 
     def __init__(self):
@@ -292,9 +277,11 @@ class ReferenceGameBenchmark(GameBenchmark):
     def get_description(self):
         return "Reference Game simulation to generate referring expressions and guess the grid"
 
-    def create_game_master(self, experiment: Dict, player_backends: List[str]) -> GameMaster:
-        return ReferenceGameMaster(experiment, player_backends)
+    def create_game_master(self, experiment: Dict, player_models: List[Model]) -> GameMaster:
+        return ReferenceGameMaster(experiment, player_models)
 
+    def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
+        return ReferenceGameScorer(experiment, game_instance)
 
 def main():
     # select one instance

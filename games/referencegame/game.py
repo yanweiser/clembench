@@ -1,3 +1,4 @@
+import random
 from typing import Dict, List
 
 from clemgame.clemgame import Player
@@ -53,7 +54,8 @@ class InstructionFollower(Player):
         return super().__call__(instruction.convert_to_query_messages(), turn_idx)
 
     def _custom_response(self, messages, turn_idx):
-        return "Answer: first"
+        answer = random.choice(["first", "second", "third"])
+        return f"Answer: {answer}"
 
 
 class InstructionGiver(Player):
@@ -65,7 +67,7 @@ class InstructionGiver(Player):
         return super().__call__(instruction.convert_to_query_messages(), turn_idx)
 
     def _custom_response(self, messages, turn_idx):
-        return "Expression: Text"
+        return "Expression: The one that looks like the target."
 
 
 class ReferenceGame:
@@ -77,7 +79,9 @@ class ReferenceGame:
         self.player_2_prompt_header = game_instance['player_2_prompt_header']
         self.target_grid_name = game_instance['target_grid_name']
         self.player_backends = player_backends
-        self.edit_distance_interval = game_instance['edit_distance_interval']
+
+        self.player_1_response_pattern = r'{}'.format(game_instance['player_1_response_pattern'])
+        self.player_2_response_pattern = r'{}'.format(game_instance['player_2_response_pattern'])
 
         self.player_1_target_grid = game_instance['player_1_target_grid']
         self.player_1_second_grid = game_instance['player_1_second_grid']
@@ -109,9 +113,7 @@ class ReferenceGame:
 
 
         # guess the grid - B side
-
-        player_1_response_text = player_1_response_text.replace('EXPRESSION:', '').replace('Expression:', '')
-        self.followed_instruction.add_user_message(self.player_2_prompt_header.replace('EXPRESSION', player_1_response_text))
+        self.followed_instruction.add_user_message(self.player_2_prompt_header.replace('TARGET_EXPRESSION', player_1_response_text))
         player_2_prompt, player_2_response, player_2_response_text = self.instruction_follower(self.followed_instruction, None)
         self.followed_instruction.add_system_message(player_2_response_text)
         # log the Player 2
