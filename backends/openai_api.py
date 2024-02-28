@@ -18,7 +18,8 @@ MODEL_GPT_4_0314 = "gpt-4-0314"
 MODEL_GPT_35_1106 = "gpt-3.5-turbo-1106"
 MODEL_GPT_35_0613 = "gpt-3.5-turbo-0613"
 MODEL_GPT_3 = "text-davinci-003"
-SUPPORTED_MODELS = [MODEL_GPT_4_0314, MODEL_GPT_4_0613, MODEL_GPT_4_1106_PREVIEW, MODEL_GPT_35_1106, MODEL_GPT_35_0613, MODEL_GPT_3]
+MODEL_GPT_4_VISION_PREVIEW = "gpt-4-vision-preview"
+SUPPORTED_MODELS = [MODEL_GPT_4_0314, MODEL_GPT_4_0613, MODEL_GPT_4_1106_PREVIEW, MODEL_GPT_35_1106, MODEL_GPT_35_0613, MODEL_GPT_3, MODEL_GPT_4_VISION_PREVIEW]
 
 NAME = "openai"
 
@@ -42,7 +43,7 @@ class OpenAI(backends.Backend):
         self.temperature: float = -1.
         self.vision_header = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {creds[NAME]["api_key"]}"
+            "Authorization": f"Bearer {creds[NAME]['api_key']}"
         }
         
         
@@ -87,6 +88,7 @@ class OpenAI(backends.Backend):
             response = json.loads(api_response.json())
         
         elif model in self.vision_models:
+            prompt = messages
             vision_messages = []
             for message in messages:
                 this = {"role": message["role"], 
@@ -102,17 +104,25 @@ class OpenAI(backends.Backend):
                         this["content"].append({
                             "type": "image_url",
                             "image_url": {
-                                loaded
+                                "url": loaded
                             }
                         })
                     else:
                         this["content"].append({
                             "type": "image_url",
                             "image_url": {
-                                f"data:image/jpeg;base64,{loaded}"
+                                "url": f"data:image/jpeg;base64,{loaded}"
                             }
                         })
                 vision_messages.append(this)
+#             payload = {
+#                 "model": model,
+#                 "messages": vision_messages,
+#                 "max_tokens": MAX_TOKENS
+#             }
+#             response = requests.post("https://api.openai.com/v1/chat/completions", headers=self.vision_header, json=payload)
+#             logged_response = response.json()
+#             print(logged_response)
             api_response = self.client.chat.completions.create(model=model,
                                                           messages=vision_messages,
                                                           temperature=self.temperature,
