@@ -1,9 +1,14 @@
 from typing import List, Dict, Tuple, Any
 from retry import retry
+from PIL import Image
+from io import BytesIO
 
 import json
 import openai
 import backends
+import requests
+import base64
+
 
 logger = backends.get_logger(__name__)
 
@@ -33,7 +38,19 @@ class OpenAI(backends.Backend):
                 api_key=creds[NAME]["api_key"]
                 )
         self.chat_models: List = ["gpt-3.5-turbo-0613", "gpt-3.5-turbo-1106", "gpt-4-0314", "gpt-4-0613", "gpt-4-1106-preview"]
+        self.vision_models: List = ["gpt-4-vision-preview"]
         self.temperature: float = -1.
+        self.vision_header = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {creds[NAME]["api_key"]}"
+        }
+        
+        
+    def encode_image(self, image_path):
+        if image_path.startswith('http'):
+            return True, image_path
+        with open(image_path, "rb") as image_file:
+            return False, base64.b64encode(image_file.read()).decode('utf-8')
 
     def list_models(self):
         models = self.client.models.list()
@@ -61,6 +78,43 @@ class OpenAI(backends.Backend):
             prompt = messages
             api_response = self.client.chat.completions.create(model=model,
                                                           messages=prompt,
+                                                          temperature=self.temperature,
+                                                          max_tokens=MAX_TOKENS)
+            message = api_response.choices[0].message
+            if message.role != "assistant":  # safety check
+                raise AttributeError("Response message role is " + message.role + " but should be 'assistant'")
+            response_text = message.content.strip()
+            response = json.loads(api_response.json())
+        
+        elif model in self.vision_models:
+            vision_messages = []
+            for message in messages:
+                this = {"role": message["role"], 
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": message["content"]
+                            }
+                    ]}
+                if "image" in message.keys():
+                    url, loaded = self.encode_image(message["image"])
+                    if url:
+                        this["content"].append({
+                            "type": "image_url",
+                            "image_url": {
+                                loaded
+                            }
+                        })
+                    else:
+                        this["content"].append({
+                            "type": "image_url",
+                            "image_url": {
+                                f"data:image/jpeg;base64,{loaded}"
+                            }
+                        })
+                vision_messages.append(this)
+            api_response = self.client.chat.completions.create(model=model,
+                                                          messages=vision_messages,
                                                           temperature=self.temperature,
                                                           max_tokens=MAX_TOKENS)
             message = api_response.choices[0].message
