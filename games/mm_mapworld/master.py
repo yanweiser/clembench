@@ -10,6 +10,7 @@ from typing import List, Dict, Tuple
 import games.mm_mapworld.utils as utils
 
 import clemgame.metrics as ms
+from backends import Model
 from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster, GameScorer
 from clemgame import get_logger
 from clemgame.clemgame import Player
@@ -37,8 +38,8 @@ DELTA_TO_CARDINAL = {
 
 
 class PathWalker(Player):
-    def __init__(self, model_name: str):
-        super().__init__(model_name)
+    def __init__(self, model: Model):
+        super().__init__(model)
         #self.model_name: str = model_name
         # a list to keep the dialogue history
         # self.history: List = []
@@ -99,8 +100,8 @@ class PathDescriber(Player):
 class MmMapWorld(DialogueGameMaster):
     """Implement mechanisms for playing MM-MapWorld."""
 
-    def __init__(self, experiment: Dict, player_backends: List[str]):
-        super().__init__(GAME_NAME, experiment, player_backends)
+    def __init__(self, experiment: Dict, player_models: List[Model]):
+        super().__init__(GAME_NAME, experiment, player_models)
 
         self.turns = []
         self.aborted: bool = False
@@ -137,7 +138,7 @@ class MmMapWorld(DialogueGameMaster):
         self.visited_nodes=[self.current_room]
 
         self.describer = PathDescriber('mock', instance_data)
-        self.walker = PathWalker(self.player_backends[0])
+        self.walker = PathWalker(self.player_models[0])
         self.add_player(self.walker)
         self.add_player(self.describer)
 
@@ -280,6 +281,6 @@ class MmMapWorldBenchmark(GameBenchmark):
     # copy this, replacing the name of the game master in the return statement
     def create_game_master(self,
                            experiment: Dict,
-                           player_backends: List[str]
+                           player_models: List[Model]
                            ) -> GameMaster:
-        return MmMapWorld(experiment, player_backends)
+        return MmMapWorld(experiment, player_models)

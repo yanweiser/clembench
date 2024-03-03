@@ -58,7 +58,7 @@ def load_image(image_file: str) -> Image:
         image = Image.open(image_file).convert('RGB')
     return image
 
-def clean_messages(current_messages: list[Dict]) -> list[Dict]:
+def clean_messages(current_messages: List[Dict]) -> List[Dict]:
     '''
     Flatten double user messages
 
@@ -80,7 +80,7 @@ def clean_messages(current_messages: list[Dict]) -> list[Dict]:
 
     return current_messages
 
-def get_images(prompt_text: str, messages: list[Dict], image_placeholder: str) -> list:
+def get_images(prompt_text: str, messages: List[Dict], image_placeholder: str) -> List:
     '''
     Return loaded images from messages
 
