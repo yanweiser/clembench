@@ -11,7 +11,7 @@ import re
 import games.mm_mapworld.utils as utils
 
 import clemgame.metrics as ms
-from backends import Model
+from backends import Model, CustomResponseModel
 from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster, GameScorer
 from clemgame import get_logger
 from clemgame.clemgame import Player
@@ -45,15 +45,15 @@ class PathWalker(Player):
         # a list to keep the dialogue history
         # self.history: List = []
 
-    def _custom_response(self, messages, turn_idx) -> str:
+    def _custom_response(self, messages) -> str:
         """Return a random direction."""
         random_dir = random.choice(["north", "south", "east", "west"])
         return f'GO: {random_dir}'
     
 
 class PathDescriber(Player):
-    def __init__(self, model_name, instance_data):
-        super().__init__(model_name)
+    def __init__(self, model, instance_data):
+        super().__init__(model)
         self.imgs = instance_data["imgs"]
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
@@ -79,7 +79,7 @@ class PathDescriber(Player):
             self.current_room = new_room
 
         
-    def _custom_response(self, messages, turn_idx) -> str:
+    def generate_response(self, messages) -> str:
         last_move = messages[-1]['content']
         without_move = last_move.replace('GO:', '')
         words = without_move.strip().split()
@@ -138,7 +138,7 @@ class MmMapWorld(DialogueGameMaster):
         self.init_prompt = game_instance["prompt"]
         self.visited_nodes=[self.current_room]
 
-        self.describer = PathDescriber('mock', instance_data)
+        self.describer = PathDescriber(CustomResponseModel(), instance_data)
         self.walker = PathWalker(self.player_models[0])
         self.add_player(self.walker)
         self.add_player(self.describer)
