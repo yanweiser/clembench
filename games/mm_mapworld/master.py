@@ -1,5 +1,6 @@
 import random
 from typing import List, Dict, Tuple
+import re
 
 # import sys
 # import os
@@ -157,6 +158,7 @@ class MmMapWorld(DialogueGameMaster):
 
     def _validate_player_response(self, player: Player, answer: str) -> bool:
         """Check if the utterance conforms to rules (cloudgame specific)."""
+        regex = r"^GO:\s+(north|east|south|west)"
         if player == self.walker:
             # in case we abort we set the next move to None
             self.move = None
@@ -165,27 +167,16 @@ class MmMapWorld(DialogueGameMaster):
                 self.stop = True
                 self.log_to_self("DONE", True)
                 return True
-            if not answer.startswith("GO:"):
+            hit = re.search(regex, answer)
+            if not hit:
                 self.aborted = True
                 self.log_to_self("Invalid format", "Game aborted.")
                 return False
-            
-            without_move = answer.replace('GO:', '')
-            words = without_move.strip().split()
-            new_dir = words[0]
-            # the following word should be one of ['north', 'east', 'south', 'west', 'stop']
-            if new_dir not in ['north', 'east', 'south', 'west', 'stop']:
-                self.aborted = True
-                self.log_to_self("Invalid direction", "Game aborted.")
-                return False
-            # everything after that can be disregarded
-            
+            new_dir = hit.group(1)
             if new_dir == 'stop':
                 self.stop = True
                 self.log_to_self("stop", True)
-                
-            self.move = words[0]
-            
+            self.move = new_dir
             self.log_to_self("Valid format", "Continue")
        
         return True
