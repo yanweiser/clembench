@@ -1,17 +1,16 @@
 import random
 from typing import List, Dict, Tuple
-import sys
-import os
 
-cwd = os.getcwd()
-additional_path = os.path.join(cwd, "games", "mm_mapworld")
+# import sys
+# import os
+# cwd = os.getcwd()
+# additional_path = os.path.join(cwd, "games", "mm_mapworld")
+# sys.path.append(additional_path)
 
-sys.path.append(additional_path)
-
-import utils
+import games.mm_mapworld.utils as utils
 
 import clemgame.metrics as ms
-from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster
+from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster, GameScorer
 from clemgame import get_logger
 from clemgame.clemgame import Player
 
@@ -224,8 +223,12 @@ class MmMapWorld(DialogueGameMaster):
         self.add_message(player, utterance, role="user", image= image)
         
         
-    ####### scoring
-    
+    ####### scoring      
+        
+class MM_MapWorldScorer(GameScorer):
+    def __init__(self, experiment: Dict, game_instance: Dict):
+        super().__init__(GAME_NAME, experiment, game_instance)
+        
     def compute_scores(self, episode_interactions) -> None:
         
         moves = 0
@@ -260,9 +263,6 @@ class MmMapWorld(DialogueGameMaster):
         self.log_episode_score('moves', moves)
         self.log_episode_score('stopped', int(stopped))
                 
-
-
-
 
 class MmMapWorldBenchmark(GameBenchmark):
     """Integrate the game into the benchmark run."""
