@@ -11,11 +11,16 @@ GAME_NAME = 'mm_mapworld'
 NUM_INSTANCES = 10
 GRAPH_SIZE = 8
 GRID_SIZE = (4,4)
+GRAPH_SIZE_SMALL = 4
+GRAPH_SIZE_MEDIUM = 6
+GRID_SIZE_SMALL = (3,3)
 SEED = 42
 RANDOM_PATH = 'random_test_images'
 IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
+MOVE_CONSTRUCTION = "GO: "
+STOP_CONSTRUCTION = "DONE"
 
-def create_random_instanes():
+def create_random_instances():
     instances = []
     np.random.seed(SEED)
     random.seed(SEED)
@@ -36,6 +41,50 @@ def create_random_instanes():
             'start': random.choice(nodes)
         })
     return instances
+
+def create_small_random_instances():
+    instances = []
+    np.random.seed(SEED)
+    random.seed(SEED)
+    path = os.path.join(IMAGE_PATH, RANDOM_PATH)
+    imgs = np.array([os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))], dtype=object)
+    for i in range(NUM_INSTANCES):
+        map_images = np.random.choice(imgs, size=GRAPH_SIZE_SMALL)
+        map = AbstractMap(*GRID_SIZE_SMALL, GRAPH_SIZE_SMALL)
+        nodes = [str(n) for n in map.G]
+        edges = list(map.G.edges())
+        rev_edges = [(edge[1], edge[0]) for edge in edges]
+        edges.extend(rev_edges)
+        img_ref = {nodes[i]: str(map_images[i]) for i in range(GRAPH_SIZE_SMALL)}
+        instances.append({
+            'nodes': nodes,
+            'edges': [str(e) for e in edges],
+            'imgs': img_ref,
+            'start': random.choice(nodes)
+        })
+    return instances
+
+def create_medium_random_instances():
+    instances = []
+    np.random.seed(SEED)
+    random.seed(SEED)
+    path = os.path.join(IMAGE_PATH, RANDOM_PATH)
+    imgs = np.array([os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))], dtype=object)
+    for i in range(NUM_INSTANCES):
+        map_images = np.random.choice(imgs, size=GRAPH_SIZE_MEDIUM)
+        map = AbstractMap(*GRID_SIZE, GRAPH_SIZE_MEDIUM)
+        nodes = [str(n) for n in map.G]
+        edges = list(map.G.edges())
+        rev_edges = [(edge[1], edge[0]) for edge in edges]
+        edges.extend(rev_edges)
+        img_ref = {nodes[i]: str(map_images[i]) for i in range(GRAPH_SIZE_MEDIUM)}
+        instances.append({
+            'nodes': nodes,
+            'edges': [str(e) for e in edges],
+            'imgs': img_ref,
+            'start': random.choice(nodes)
+        })
+    return instances
         
 
 class MmMapWorldInstanceGenerator(GameInstanceGenerator):
@@ -46,7 +95,9 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
       
         prompt = self.load_template('resources/initial_prompts/prompt.template')
         experiments = {
-            'random': create_random_instanes
+            'random': create_random_instances,
+            'small_random': create_small_random_instances,
+            'medium_random': create_medium_random_instances
         }
 
         for exp in experiments.keys():
@@ -58,6 +109,8 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
                  for key, value in inst.items():
                      instance[key] = value
                  instance["prompt"] = prompt
+                 instance["move_construction"] = MOVE_CONSTRUCTION
+                 instance["stop_construction"] = STOP_CONSTRUCTION
                  game_id += 1
 
 if __name__ == '__main__':
