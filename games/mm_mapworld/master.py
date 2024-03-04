@@ -45,7 +45,7 @@ class PathWalker(Player):
         # a list to keep the dialogue history
         # self.history: List = []
 
-    def _custom_response(self, messages) -> str:
+    def _custom_response(self, messages, turn_idx) -> str:
         """Return a random direction."""
         random_dir = random.choice(["north", "south", "east", "west"])
         return f'GO: {random_dir}'
@@ -79,7 +79,7 @@ class PathDescriber(Player):
             self.current_room = new_room
 
         
-    def generate_response(self, messages) -> str:
+    def _custom_response(self, messages, turn_idx) -> str:
         last_move = messages[-1]['content']
         without_move = last_move.replace('GO:', '')
         words = without_move.strip().split()
@@ -89,12 +89,12 @@ class PathDescriber(Player):
         invalid_direction = old_room == self.current_room
         available_directions = self.get_available_directions(self.current_room)
         if invalid_direction:
-            response = "The move is not valid. You are still in the the same room. "
+            response = "The move was invalid and we are still in the room you are seeing."
         else:
-            response = "You have made a step and entered a different room. "
-        response += "Currently available directions: "
+            response = "We are now in the room shown to you."
+        response += "\nFrom here we can go: "
         response += ", ".join(available_directions)
-        response += ". What is your next instruction?"
+        response += ". What should we do?"
         return response
 
         
@@ -155,19 +155,43 @@ class MmMapWorld(DialogueGameMaster):
         if not self.aborted and self.current_turn < MAX_TURNS and not self.stop:
             return True
         return False
+    
+    def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
+        """
+        Hook
+
+        Decide if a response utterance should be modified. If not simply return the utterance.
+
+        When a modified utterance and a true value is returned, then a 'parse' event is logged.
+
+        :param player: that produced the response
+        :param utterance: to be potentially modified
+        :return: the (modified) utterance and if to log the parse action (default: True)
+        """
+        
+        if player == self.walker:
+            utterance = utterance.replace("\n", "").strip()
+            for word in ["West", "North", "East", "South"]:
+                utterance = utterance.replace(word, word.lower())
+        return utterance, True
 
     def _validate_player_response(self, player: Player, answer: str) -> bool:
         """Check if the utterance conforms to rules (cloudgame specific)."""
-        regex = r"^GO:\s+(north|east|south|west)"
+        done_regex = r"DONE"
+        move_regex = r"GO:\s*(north|east|south|west)"
+        answer = answer.replace("\n", "").strip()
+        for word in ["West", "North", "East", "South"]:
+            answer = answer.replace(word, word.lower())
         if player == self.walker:
             # in case we abort we set the next move to None
             self.move = None
             # Check if the answer begins with 'MOVE:'
-            if answer.startswith("DONE"):
+            done_hit = re.search(done_regex, answer)
+            if done_hit:
                 self.stop = True
                 self.log_to_self("DONE", True)
                 return True
-            hit = re.search(regex, answer)
+            hit = re.search(move_regex, answer)
             if not hit:
                 self.aborted = True
                 self.log_to_self("Invalid format", "Game aborted.")
