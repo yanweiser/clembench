@@ -4,6 +4,7 @@ import re
 import json
 from queue import Queue
 from copy import deepcopy
+from time import sleep
 
 # import sys
 # import os
@@ -253,7 +254,7 @@ class MM_MapWorldScorer(GameScorer):
         self.imgs = instance_data["imgs"]
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
-        self.start = instance_data["start"]
+        self.start_node = instance_data["start"]
         
     def adj(self, node):
         return set([ed[1] for ed in self.edges if ed[0] == node])
@@ -272,12 +273,17 @@ class MM_MapWorldScorer(GameScorer):
         found = set()
         max_len = 100
         while True:
+            if not q.qsize():
+                break
             n = q.get()
             if len(n) > max_len:
                 break
             if self.visited_all(n, to_visit):
                 found.add((n[0], n[1]))
                 max_len = len(n)
+                continue
+            if len(n) == max_len:
+                continue
             avail = self.get_available_moves(n[-1])
             if all([move[1] in n for move in avail]):
                 for move in avail:
@@ -293,10 +299,10 @@ class MM_MapWorldScorer(GameScorer):
         return found
         
     def compute_scores(self, episode_interactions) -> None:
-        current = self.start
-        seen = {self.start}
-        seen.update(self.adj(self.start))
-        visited = {self.start}
+        current = self.start_node
+        seen = {self.start_node}
+        seen.update(self.adj(self.start_node))
+        visited = {self.start_node}
         valid_moves = 0
         invalid_moves = 0
         stopped = False
@@ -312,19 +318,27 @@ class MM_MapWorldScorer(GameScorer):
                         aborted = True
                 if action['type'] == "move":
                     cont = json.loads(action['content'])
-                    if not cont["old"] == cont["new"]:
+                    old = tuple(cont["old"])
+                    new = tuple(cont["new"])
+                    if not old == new:
                         valid_moves += 1
                     else:
                         invalid_moves += 1
-                    current = cont["new"]
-                    seen.update(self.adj(current))
-                    visited.add(current)
-                    best_moves = self.find_best_moves(current, visited)
-                    if (cont["old"],cont["new"]) in best_moves:
-                        good_move.append[True]
-                        
+                    
+                    if not self.visited_all(visited, self.nodes) and not old == new:
+                        best_moves = self.find_best_moves(old, visited)
+#                         print(best_moves)
+                        if (old,new) in best_moves:
+                            good_move.append(True)
+
+                        else:
+                            good_move.append(False)
                     else:
                         good_move.append(False)
+                    current = new
+                    seen.update(self.adj(current))
+                    visited.add(current)
+                    
                 if action['type'] == "stop":
                     if action["content"]:
                         stopped = True
@@ -347,7 +361,7 @@ class MM_MapWorldScorer(GameScorer):
         self.log_episode_score('seen', len(seen))
         eff = 100*sum(good_move)/len(good_move)
         self.log_episode_score('effieciency', eff)
-        suc = 100*len(good_move)/len(self.nodes)
+        suc = 100*len(visited)/len(self.nodes)
         self.log_episode_score('success', suc)
         self.log_episode_score(BENCH_SCORE, (2*suc*eff)/(eff+suc))
         
@@ -373,3 +387,6 @@ class MmMapWorldBenchmark(GameBenchmark):
                            player_models: List[Model]
                            ) -> GameMaster:
         return MmMapWorld(experiment, player_models)
+    
+    def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
+        return MM_MapWorldScorer(experiment, game_instance)
