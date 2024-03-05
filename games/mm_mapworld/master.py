@@ -1,6 +1,9 @@
 import random
 from typing import List, Dict, Tuple
 import re
+import json
+from queue import Queue
+from copy import deepcopy
 
 # import sys
 # import os
@@ -17,7 +20,8 @@ from clemgame import get_logger
 from clemgame.clemgame import Player
 
 from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC_REQUEST_COUNT, \
-    METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_COUNT_PARSED, METRIC_REQUEST_SUCCESS, BENCH_SCORE
+    METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_COUNT_PARSED, METRIC_REQUEST_SUCCESS, BENCH_SCORE, \
+        BENCH_SCORE
 
 
 
@@ -218,9 +222,10 @@ class MmMapWorld(DialogueGameMaster):
 
         self.visited_nodes.append(self.current_room)
 
-        self.log_to_self(type_ = "move", value = f"from {str(old_room)} to {self.current_room}")
+        self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
         if self.aborted:
             self.log_to_self(type_ = "aborted", value = self.aborted)
+            
 
 
 
@@ -244,31 +249,89 @@ class MmMapWorld(DialogueGameMaster):
 class MM_MapWorldScorer(GameScorer):
     def __init__(self, experiment: Dict, game_instance: Dict):
         super().__init__(GAME_NAME, experiment, game_instance)
+        instance_data = utils.load_instance(self.game_instance)
+        self.imgs = instance_data["imgs"]
+        self.nodes = instance_data["nodes"]
+        self.edges = instance_data["edges"]
+        self.start = instance_data["start"]
+        
+    def adj(self, node):
+        return set([ed[1] for ed in self.edges if ed[0] == node])
+    
+    def visited_all(self, visited, to_visit):
+        return all([n in visited for n in to_visit])
+    
+    def get_available_moves(self, node):
+        return [edge for edge in self.edges if node == edge[0]]
+    
+    def find_best_moves(self, current, visited):
+        to_visit = [ed[1] for ed in self.edges if ed[0] in visited and ed[1] not in visited]
+        start = [current]
+        q = Queue()
+        q.put(start)
+        found = set()
+        max_len = 100
+        while True:
+            n = q.get()
+            if len(n) > max_len:
+                break
+            if self.visited_all(n, to_visit):
+                found.add((n[0], n[1]))
+                max_len = len(n)
+            avail = self.get_available_moves(n[-1])
+            if all([move[1] in n for move in avail]):
+                for move in avail:
+                    new = deepcopy(n)
+                    new.append(move[1])
+                    q.put(new)
+            else:
+                for move in avail:
+                    if not move[1] in n:
+                        new = deepcopy(n)
+                        new.append(move[1])
+                        q.put(new)
+        return found
         
     def compute_scores(self, episode_interactions) -> None:
-        
-        moves = 0
+        current = self.start
+        seen = {self.start}
+        seen.update(self.adj(self.start))
+        visited = {self.start}
+        valid_moves = 0
+        invalid_moves = 0
         stopped = False
+        aborted = False
+        good_move = []
         
         for turn in episode_interactions["turns"]:
-            aborted = False
-            
-            
+
             for event in turn:
                 action = event["action"]
                 if action["type"] == "aborted":
                     if action["content"]:
                         aborted = True
                 if action['type'] == "move":
-                    pure = action['content'].replace('from', '')
-                    pure = pure.split('to')
-                    if not pure[0].strip() == pure[1].strip():
-                        moves += 1
+                    cont = json.loads(action['content'])
+                    if not cont["old"] == cont["new"]:
+                        valid_moves += 1
+                    else:
+                        invalid_moves += 1
+                    current = cont["new"]
+                    seen.update(self.adj(current))
+                    visited.add(current)
+                    best_moves = self.find_best_moves(current, visited)
+                    if (cont["old"],cont["new"]) in best_moves:
+                        good_move.append[True]
+                        
+                    else:
+                        good_move.append(False)
                 if action['type'] == "stop":
                     if action["content"]:
                         stopped = True
+                
                         
-                        
+        for i, val in enumerate(good_move):
+            self.log_turn_score(i, "effiencient_move", val)                
         if aborted:
             self.log_episode_score(METRIC_ABORTED, 1)
             self.log_episode_score(METRIC_SUCCESS, 0)
@@ -276,8 +339,19 @@ class MM_MapWorldScorer(GameScorer):
         else:
             self.log_episode_score(METRIC_ABORTED, 0)
             
-        self.log_episode_score('moves', moves)
+        self.log_episode_score('moves', valid_moves + invalid_moves)
+        self.log_episode_score('valid_moves', valid_moves)
+        self.log_episode_score('invalid_moves', invalid_moves)
         self.log_episode_score('stopped', int(stopped))
+        self.log_episode_score('visited', len(visited))
+        self.log_episode_score('seen', len(seen))
+        eff = 100*sum(good_move)/len(good_move)
+        self.log_episode_score('effieciency', eff)
+        suc = 100*len(good_move)/len(self.nodes)
+        self.log_episode_score('success', suc)
+        self.log_episode_score(BENCH_SCORE, (2*suc*eff)/(eff+suc))
+        
+        
                 
 
 class MmMapWorldBenchmark(GameBenchmark):
