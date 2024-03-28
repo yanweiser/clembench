@@ -8,8 +8,10 @@ from typing import List, Dict, Tuple, Any
 from tqdm import tqdm
 
 import backends
+from backends import Model, CustomResponseModel, HumanModel
 import clemgame
 from clemgame import file_utils, string_utils, transcript_utils
+import clemgame.metrics as ms
 
 logger = clemgame.get_logger(__name__)
 stdout_logger = clemgame.get_logger("benchmark.run")
@@ -23,39 +25,35 @@ class Player(abc.ABC):
     A participant of a game. A player can respond via a custom implementation, human input or a language model:
 
     - the programmatic players are called via the _custom_response() method
-    - the programmatic players are called via the _terminal_response() method
-    - the remote language model that requires a connection to a particular backend (API)
+    - the human players are called via the _terminal_response() method
+    - the backend players are called via the generate_response() method of the backend
     """
-    PROGRAMMATIC_PLAYERS = ["mock", "dry_run", "programmatic", "custom", "_slurk_response"]
-    HUMAN_PLAYERS = ["human", "terminal"]
 
-    def __init__(self, model_name: str):
-        self.model_name = model_name
-        self.remote = None
-        if not Player.is_programmatic(model_name) and not Player.is_human(model_name):
-            self.remote: backends.Backend = backends.lookup_by_model_name(model_name)
+    def __init__(self, model: Model):
+        self.model = model
         self.descriptor: str = None
         logger.info("Player %s", self.get_description())
 
     def get_description(self) -> str:
-        return f"{self.__class__.__name__}, {self.model_name}"
+        return f"{self.__class__.__name__}, {self.model}"
 
     def __call__(self, messages: List[Dict], turn_idx) -> Tuple[Any, Any, str]:
         call_start = datetime.now()
-        if Player.is_programmatic(self.model_name):
-            prompt, response, response_text = messages, {"response": "programmatic"}, \
-                self._custom_response(messages, turn_idx)
-        elif Player.is_human(self.model_name):
-            prompt, response, response_text = messages, {"response": "human"}, \
-                self._terminal_response(messages, turn_idx)
+        prompt = messages
+        response = dict()
+        if isinstance(self.model, CustomResponseModel):
+            response_text = self._custom_response(messages, turn_idx)
+        elif isinstance(self.model, HumanModel):
+            response_text = self._terminal_response(messages, turn_idx)
         else:
-            if self.remote is None:
-                raise AttributeError("No remote model initialized for player: " + self.get_description() + "."
-                                     + " You probably tried to load a Player with a backend"
-                                       " that is not available or could not be loaded.")
-            prompt, response, response_text = self.remote.generate_response(messages, self.model_name)
+            prompt, response, response_text = self.model.generate_response(messages)
         call_duration = datetime.now() - call_start
-        response["duration"] = str(call_duration)
+        response["clem_player"] = {
+            "call_start": str(call_start),
+            "call_duration": str(call_duration),
+            "response": response_text,
+            "model_name": self.model.get_name()
+        }
         return prompt, response, response_text
 
     def _terminal_response(self, messages, turn_idx) -> str:
@@ -80,14 +78,6 @@ class Player(abc.ABC):
         :return: the programmatic response as text
         """
         raise NotImplementedError()
-
-    @staticmethod
-    def is_programmatic(model_name):
-        return model_name in Player.PROGRAMMATIC_PLAYERS
-
-    @staticmethod
-    def is_human(model_name):
-        return model_name in Player.HUMAN_PLAYERS
 
 
 class GameResourceLocator(abc.ABC):
@@ -196,14 +186,6 @@ class GameRecorder(GameResourceLocator):
         }
         """ Stores calls to the API """
         self.requests = []
-        """ Stores values of score computation """
-        self.scores = {
-            "turn scores": {},
-            "episode scores": {},
-        }
-
-    def store_scores(self, dialogue_pair, game_record_dir):
-        self.store_results_file(self.scores, "scores.json", dialogue_pair, sub_dir=game_record_dir)
 
     def log_next_turn(self):
         """ Call this method to group interactions per turn """
@@ -257,22 +239,6 @@ class GameRecorder(GameResourceLocator):
             return call_obj[:]
         return call_obj
 
-    def log_turn_score(self, turn_idx, score_name, score_value):
-        if isinstance(score_value, bool):
-            self.logger.warning(f"{self.name}: Score {score_name} value is boolean, this can break the eval!")
-        if turn_idx not in self.scores["turn scores"]:
-            self.scores["turn scores"][turn_idx] = {}
-        if score_name in self.scores["turn scores"][turn_idx]:
-            self.logger.warning(f"{self.name}: Score {score_name} overwritten at turn {turn_idx}!")
-        self.scores["turn scores"][turn_idx][score_name] = score_value
-        self.logger.info(f"{self.name}: Logged turn {turn_idx} score {score_name}={score_value}.")
-
-    def log_episode_score(self, score_name, score_value):
-        if score_name in self.scores["episode scores"]:
-            self.logger.warning(f"{self.name}: Episode score {score_name} overwritten!")
-        self.scores["episode scores"][score_name] = score_value
-        self.logger.info(f"{self.name}: Logged episode score {score_name}={score_value}.")
-
     def store_records(self, dialogue_pair_desc: str, game_id: int, game_record_dir: str):
         """Raise warnings if a mandatory element is empty or format is wrong."""
         if not self.interactions["players"]:
@@ -308,14 +274,14 @@ class GameMaster(GameRecorder):
 
     """
 
-    def __init__(self, name: str, experiment: Dict, player_backends: List[str] = None):
+    def __init__(self, name: str, experiment: Dict, player_models: List[Model] = None):
         """
         :param name: of the game
-        :param player_backends: to use for (remote) calls. For one or two players.
+        :param player_models: to use for one or two players.
         """
         super().__init__(name)
-        self.experiment = experiment
-        self.player_backends = player_backends
+        self.experiment: Dict = experiment
+        self.player_models: List[Model] = player_models
 
     def setup(self, **kwargs):
         """
@@ -330,17 +296,81 @@ class GameMaster(GameRecorder):
         """
         raise NotImplementedError()
 
+
+class GameScorer(GameResourceLocator):
+
+    def __init__(self, name: str, experiment: Dict, game_instance: Dict):
+        super().__init__(name)
+        self.experiment = experiment
+        self.game_instance = game_instance
+        """ Stores values of score computation """
+        self.scores = {
+            "turn scores": {},
+            "episode scores": {},
+        }
+
+    def store_scores(self, dialogue_pair, game_record_dir):
+        self.store_results_file(self.scores, "scores.json", dialogue_pair, sub_dir=game_record_dir)
+
+    def log_turn_score(self, turn_idx, score_name, score_value):
+        if isinstance(score_value, bool):
+            self.logger.warning(f"{self.name}: Score {score_name} value is boolean, this can break the eval!")
+        if turn_idx not in self.scores["turn scores"]:
+            self.scores["turn scores"][turn_idx] = {}
+        if score_name in self.scores["turn scores"][turn_idx]:
+            self.logger.warning(f"{self.name}: Score {score_name} overwritten at turn {turn_idx}!")
+        self.scores["turn scores"][turn_idx][score_name] = score_value
+        self.logger.info(f"{self.name}: Logged turn {turn_idx} score {score_name}={score_value}.")
+
+    def log_episode_score(self, score_name, score_value):
+        if score_name in self.scores["episode scores"]:
+            self.logger.warning(f"{self.name}: Episode score {score_name} overwritten!")
+        self.scores["episode scores"][score_name] = score_value
+        self.logger.info(f"{self.name}: Logged episode score {score_name}={score_value}.")
+
     def compute_scores(self, episode_interactions: Dict) -> None:
-        """
-        Loop over the game records to compute and log all turn and episode scores.
-        """
+        self.score_turns(episode_interactions)
+        self.score_game(episode_interactions)
+
+    def score_turns(self, episode_interactions: Dict) -> None:
+        # Loop over turns, calculate and log turn-specific scores
+        raise NotImplementedError()
+
+    def score_game(self, episode_interactions: Dict) -> None:
+        self.score_game_end(episode_interactions)
+        self.score_requests(episode_interactions)
+        self.log_main_score(episode_interactions)
+
+    def score_game_end(self, episode_interactions: Dict) -> None:
+        aborted = int(episode_interactions[ms.METRIC_ABORTED])
+        lose = int(episode_interactions[ms.METRIC_LOSE]) if not aborted else 0
+        success = 1 - lose if not aborted else 0
+
+        self.log_episode_score(ms.METRIC_ABORTED, aborted)
+        self.log_episode_score(ms.METRIC_LOSE, lose)
+        self.log_episode_score(ms.METRIC_SUCCESS, success)
+
+    def score_requests(self, episode_interactions: Dict):
+        # logging total request count, parsed, violated, and success ratio of parsed requests over all requests
+        request_count = episode_interactions[
+            ms.METRIC_REQUEST_COUNT]  # could also be calculated by adding parsed and violated requests
+        parsed_requests = episode_interactions[ms.METRIC_REQUEST_COUNT_PARSED]
+        violated_requests = episode_interactions[ms.METRIC_REQUEST_COUNT_VIOLATED]
+
+        self.log_episode_score(ms.METRIC_REQUEST_COUNT, request_count)
+        self.log_episode_score(ms.METRIC_REQUEST_COUNT_PARSED, parsed_requests)
+        self.log_episode_score(ms.METRIC_REQUEST_COUNT_VIOLATED, violated_requests)
+        self.log_episode_score(ms.METRIC_REQUEST_SUCCESS, parsed_requests / request_count)
+
+    def log_main_score(self, episode_interactions: Dict):
+        # Replace this function call with a function that logs your main score aka BENCH_SCORE
         raise NotImplementedError()
 
 
 class DialogueGameMaster(GameMaster):
 
-    def __init__(self, name, experiment, player_backends):
-        super().__init__(name, experiment, player_backends)
+    def __init__(self, name: str, experiment: dict, player_models: List[Model]):
+        super().__init__(name, experiment, player_models)
         # the logging works with an internal mapping of "Player N" -> Player
         self.players_by_names: Dict[str, Player] = collections.OrderedDict()
         self.messages_by_names: Dict[str, List] = dict()
@@ -568,9 +598,10 @@ class GameBenchmark(GameResourceLocator):
         """
         raise NotImplementedError()
 
-    def setup(self):
-        # For now, we assume a single instances.json
-        self.instances = self.load_json("in/instances.json")
+    def setup(self, instances_name: str = None):
+        if instances_name is None:
+            instances_name = "instances"
+        self.instances = self.load_json(f"in/{instances_name}")
 
     def build_transcripts(self):
         results_root = file_utils.results_root()
@@ -581,9 +612,6 @@ class GameBenchmark(GameResourceLocator):
             if not os.path.exists(game_result_path) or not os.path.isdir(game_result_path):
                 stdout_logger.info("No results directory found at: " + game_result_path)
                 continue
-
-            model_pair = string_utils.to_model_pair(dialogue_pair)
-            model_pair = ["-".join(m.split("-")[:-1]) for m in model_pair]  # remove -t0.0
 
             experiment_dirs = [file for file in os.listdir(game_result_path)
                                if os.path.isdir(os.path.join(game_result_path, file))]
@@ -660,10 +688,9 @@ class GameBenchmark(GameResourceLocator):
                         game_interactions = self.load_results_json(f"{rel_episode_path}/interactions",
                                                                    dialogue_pair)
 
-                        game_master = self.create_game_master(experiment_config, model_pair)
-                        game_master.setup(**game_instance)
-                        game_master.compute_scores(game_interactions)
-                        game_master.store_scores(dialogue_pair, rel_episode_path)
+                        game_scorer = self.create_game_scorer(experiment_config, game_instance)
+                        game_scorer.compute_scores(game_interactions)
+                        game_scorer.store_scores(dialogue_pair, rel_episode_path)
                     except Exception:  # continue with other episodes if something goes wrong
                         self.logger.exception(f"{self.name}: Cannot score {episode_dir} (but continue)")
                         error_count += 1
@@ -671,7 +698,7 @@ class GameBenchmark(GameResourceLocator):
                     stdout_logger.error(
                         f"{self.name}: '{error_count}' exceptions occurred: See clembench.log for details.")
 
-    def run(self, player_backends: List[str], temperature: float):
+    def run(self, player_models: List[Model]):
         """
         Runs game-play on all game instances for a game.
         There must be an instances.json with the following structure:
@@ -697,10 +724,6 @@ class GameBenchmark(GameResourceLocator):
                                 - instance.json
                                 - interaction.json
         """
-        self.logger.warning(f"{self.name}: Detected 'temperature={temperature}'")
-        # Setting this directly on the apis for now (not on the players)
-        backends.configure(lambda backend: setattr(backend, "temperature", temperature))
-
         experiments: List = self.instances["experiments"]
         if not experiments:
             self.logger.warning(f"{self.name}: No experiments for %s", self.name)
@@ -712,12 +735,17 @@ class GameBenchmark(GameResourceLocator):
                 continue
             stdout_logger.info(f"Run experiment {experiment_idx + 1} of {total_experiments}: {experiment_name}")
             # Determine dialogue partners: How often to run the experiment with different partners
-            dialogue_partners: List[List[str]] = []
+            dialogue_partners: List[List[Model]] = []
 
-            if player_backends:  # favor runtime argument over experiment config
-                dialogue_partners = [player_backends]
-            elif "dialogue_partners" in experiment:
-                dialogue_partners = experiment["dialogue_partners"]
+            if player_models:  # favor runtime argument over experiment config
+                dialogue_partners = [player_models]
+            elif "dialogue_partners" in experiment:  # edge-case when names are given in experiment config
+                for dialogue_pair_names in experiment["dialogue_partners"]:
+                    player_models = []
+                    for model_name in dialogue_pair_names:
+                        player_model = backends.get_model_for(model_name)
+                        player_models.append(player_model)
+                    dialogue_partners.append(player_models)
                 self.logger.info(f"{self.name}: Detected 'dialogue_partners' in experiment config. "
                                  f"Will run with: {dialogue_partners}")
 
@@ -733,9 +761,10 @@ class GameBenchmark(GameResourceLocator):
                         message = f"Too many player for singe-player game '{self.name}': '{len(dialogue_partners)}'"
                         stdout_logger.error(message)
                         raise ValueError(message)
-                    model_desc_0 = f"{dialogue_pair[0]}-t{temperature}"
+                    model_0 = dialogue_pair[0]
+                    model_0 = f"{model_0.get_name()}-t{model_0.get_temperature()}"
                     # still we store to model--model dir (virtual self-play)
-                    dialogue_pair_desc = f"{model_desc_0}--{model_desc_0}"
+                    dialogue_pair_desc = f"{model_0}--{model_0}"
                 else:  # 2-players
                     if len(dialogue_pair) > 2:
                         message = f"Too many player for two-player game '{self.name}': '{len(dialogue_partners)}'"
@@ -743,9 +772,11 @@ class GameBenchmark(GameResourceLocator):
                         raise ValueError(message)
                     if len(dialogue_pair) == 1:
                         dialogue_pair.append(dialogue_pair[0])  # model expansion
-                    model_desc_0 = f"{dialogue_pair[0]}-t{temperature}"
-                    model_desc_1 = f"{dialogue_pair[1]}-t{temperature}"
-                    dialogue_pair_desc = f"{model_desc_0}--{model_desc_1}"
+                    model_0 = dialogue_pair[0]
+                    model_0 = f"{model_0.get_name()}-t{model_0.get_temperature()}"
+                    model_1 = dialogue_pair[1]
+                    model_1 = f"{model_1.get_name()}-t{model_1.get_temperature()}"
+                    dialogue_pair_desc = f"{model_0}--{model_1}"
                 episode_counter = 0
 
                 self.logger.info("Activity: %s Experiment: %s Partners: %s Episode: %d",
@@ -756,7 +787,7 @@ class GameBenchmark(GameResourceLocator):
 
                 # Add some important infos to track
                 experiment_config["timestamp"] = datetime.now().isoformat()
-                experiment_config["dialogue_partners"] = dialogue_pair
+                experiment_config["dialogue_partners"] = dialogue_pair_desc
 
                 self.store_results_file(experiment_config,
                                         f"experiment_{experiment_name}.json",
@@ -803,7 +834,10 @@ class GameBenchmark(GameResourceLocator):
         """
         return False
 
-    def create_game_master(self, experiment: Dict, player_backends: List[str]) -> GameMaster:
+    def create_game_master(self, experiment: Dict, player_models: List[Model]) -> GameMaster:
+        raise NotImplementedError()
+
+    def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
         raise NotImplementedError()
 
 
@@ -876,10 +910,10 @@ def load_benchmarks(do_setup: bool = True) -> List[GameBenchmark]:
     return game_benchmarks
 
 
-def load_benchmark(game_name: str, do_setup: bool = True) -> GameBenchmark:
+def load_benchmark(game_name: str, do_setup: bool = True, instances_name: str = None) -> GameBenchmark:
     gm = find_benchmark(game_name)
     if do_setup:
-        gm.setup()
+        gm.setup(instances_name)
     return gm
 
 

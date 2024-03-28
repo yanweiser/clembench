@@ -1,7 +1,8 @@
 from typing import List, Tuple, Dict
 
+from backends import Model
 from clemgame import metrics
-from clemgame.clemgame import GameMaster, GameBenchmark
+from clemgame.clemgame import GameMaster, GameBenchmark, GameScorer
 from games.imagegame.game import ImageGame
 from games.imagegame.evaluator import evaluate, calculate_flipped_pixels
 from clemgame import get_logger
@@ -15,18 +16,15 @@ logger = get_logger(__name__)
 
 class ImageGameMaster(GameMaster):
 
-    def __init__(self, experiment: Dict, player_backends: List[str]):
-        super().__init__(GAME_NAME, experiment, player_backends)
+    def __init__(self, experiment: Dict, player_models: List[Model]):
+        super().__init__(GAME_NAME, experiment, player_models)
         self.experiment = experiment
-        self.player_backends = player_backends
         self.game = None
         self.request_count = 0
         self.parsed_request_count = 0
         self.violated_request_count = 0
         self.aborted_ratio = 0
-        self.player_b_pattern = r'^\n*([A-Z▢]\s){4}[A-Z▢]\n([A-Z▢]\s){4}[A-Z▢]\n([A-Z▢]\s){4}[A-Z▢]\n([A-Z▢]\s){4}[A-Z▢]\n([A-Z▢]\s){4}[A-Z▢]\n*$'
-        self.player_a_pattern = r'^Instruction:\s*(.+)\n*(.+)*$'
-        self.terminate_pattern = r'^Instruction:\s*(DONE|Done|done)'
+
         self.turn_request_stats = {}
 
     def get_description(self) -> str:
@@ -36,12 +34,12 @@ class ImageGameMaster(GameMaster):
     def _on_setup(self, **game_instance):
         self.game_instance = game_instance
 
-        self.game = ImageGame(self.game_instance, self.player_backends)
+        self.game = ImageGame(self.game_instance, self.player_models)
 
         self.log_players({
             "GM": "Game master for imagegame",
-            "Player_1": self.player_backends[0],
-            "Player_2": self.player_backends[1]}
+            "Player_1": self.player_models[0].get_name(),
+            "Player_2": self.player_models[1].get_name()}
         )
 
     def setup(self, **kwargs):
@@ -83,26 +81,24 @@ class ImageGameMaster(GameMaster):
         self.game.given_instruction.add_system_message(player_1_response_text)
 
         # check if it reached the end on 1 side
-        match = re.match(self.terminate_pattern, player_1_response_text)
+        match = re.compile(self.game.player_1_terminate_pattern, re.IGNORECASE).match(player_1_response_text)
         if match:
+            print('Parsed output: {} '.format(True))
             self.parsed_request_count += 1
             self.turn_request_stats[self.game.current_turn]['parsed_count'] += 1
             self.game.terminate = True
             return
         else:
             # continue if the Player didn't say -> Instruction: DONE
-
             # check if Player 1 message follows the rule => start with "Instruction:"
-            player_1_message_matched = False
-            parsed_instruction = ''
-            if player_1_response_text.startswith('Instruction:'):
+            player_1_message_matched = re.compile(self.game.player_1_response_pattern, re.IGNORECASE).match(player_1_response_text)
+            if player_1_message_matched:
+                parsed_instruction = ''
                 if '\n' in player_1_response_text:
                     parsed_instruction = player_1_response_text.split('\n')[0]
                 else:
                     parsed_instruction = player_1_response_text
-                player_1_message_matched = True
 
-            if player_1_message_matched:
                 self.parsed_request_count += 1
                 self.turn_request_stats[self.game.current_turn]['parsed_count'] += 1
                 action = {'type': 'parse', 'content': parsed_instruction,
@@ -148,7 +144,7 @@ class ImageGameMaster(GameMaster):
             self.request_count += 1
 
             # check if Player 2 message has the required format: grid
-            match = re.compile(self.player_b_pattern).match(player_2_response_text)
+            match = re.compile(self.game.player_2_response_pattern).match(player_2_response_text)
             if match:
                 self.parsed_request_count += 1
                 self.turn_request_stats[self.game.current_turn]['parsed_count'] += 1
@@ -170,6 +166,16 @@ class ImageGameMaster(GameMaster):
                 return
 
         self.game.current_turn += 1
+
+
+class ImageGameScorer(GameScorer):
+
+    def __init__(self, experiment: Dict, game_instance: Dict):
+        super().__init__(GAME_NAME, experiment, game_instance)
+        self.target_grid = game_instance["target_grid"]
+        self.player1_response_pattern = r'{}'.format(game_instance["player_1_response_pattern"])
+        self.player2_response_pattern = r'{}'.format(game_instance["player_2_response_pattern"])
+        self.player1_terminate_pattern = r'{}'.format(game_instance["player_1_terminate_pattern"])
 
     def compute_scores(self, episode_interactions: Dict) -> None:
 
@@ -200,23 +206,20 @@ class ImageGameMaster(GameMaster):
             player_1_message = turn[1]['action']['content']
 
             # Player generates "DONE"
-            match = re.match(self.terminate_pattern, player_1_message)
+            match = re.compile(self.player1_terminate_pattern, re.IGNORECASE).match(player_1_message)
             if match:
                 break
 
             turn_request_count += 1
             episode_request_count += 1
 
-            # check the Player 1 message if it matches the rule, start with "Instruction:"
-            player_1_message_matched = False
-            if player_1_message.startswith('Instruction:'):
+            # check the Player 1 message if it matches the rule
+            player_1_message_matched = re.compile(self.player1_response_pattern, re.IGNORECASE).match(player_1_message)
+            if player_1_message_matched:
                 if '\n' in player_1_message:
                     parsed_instruction = player_1_message.split('\n')[0]
                     player_1_message = parsed_instruction
-                player_1_message_matched = True
 
-
-            if player_1_message_matched:
                 turn_parsed_request_count += 1
                 episode_parsed_request_count += 1
             else:
@@ -238,7 +241,7 @@ class ImageGameMaster(GameMaster):
             episode_request_count += 1
 
             # check Player 2 message if it matches the instruction => grid
-            match = re.compile(self.player_b_pattern).match(player_2_message)
+            match = re.compile(self.player2_response_pattern).match(player_2_message)
             if match:
                 turn_parsed_request_count += 1
                 episode_parsed_request_count += 1
@@ -251,7 +254,7 @@ class ImageGameMaster(GameMaster):
             # calculate player-specific and turn-specific metrics
 
             try:
-                precision, recall, f1 = evaluate(self.game.target_grid, player_2_message)
+                precision, recall, f1 = evaluate(self.target_grid, player_2_message)
             except:
                 pass
 
@@ -359,10 +362,6 @@ class ImageGameMaster(GameMaster):
             self.log_episode_score(metrics.METRIC_REQUEST_SUCCESS, request_success_ratio)
 
 
-    def _get_recorded_turns(self, records: Dict) -> List[int]:
-        return list(range(len(records["turns"])))
-
-
 class ImageGameBenchmark(GameBenchmark):
 
     def __init__(self):
@@ -371,5 +370,8 @@ class ImageGameBenchmark(GameBenchmark):
     def get_description(self):
         return "Image Game simulation to generate referring expressions and fill a grid accordingly"
 
-    def create_game_master(self, experiment: Dict, player_backends: List[str]) -> GameMaster:
-        return ImageGameMaster(experiment, player_backends)
+    def create_game_master(self, experiment: Dict, player_models: List[Model]) -> GameMaster:
+        return ImageGameMaster(experiment, player_models)
+
+    def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
+        return ImageGameScorer(experiment, game_instance)

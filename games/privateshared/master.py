@@ -10,15 +10,15 @@ from sklearn.metrics import accuracy_score as acc_score
 from sklearn.metrics import cohen_kappa_score
 
 import clemgame.metrics as ms
+from backends import Model
 from clemgame import file_utils
-from clemgame.clemgame import GameMaster, GameBenchmark
+from clemgame.clemgame import GameMaster, GameBenchmark, GameScorer
 from clemgame import get_logger
 
 from games.privateshared.game import PrivateSharedGame
 from games.privateshared.constants import (
-    GAME_NAME, PROBES_PATH, RETRIES_PATH, DUMMY_PROMPT, ANSWER, UPDATE,
-    INVALID_LABEL, INVALID, PROBE, YES, NO, SUCCESS, NOT_SUCCESS, NOT_PARSED,
-    ASIDE, RESULT, ME)
+    GAME_NAME, PROBES_PATH, RETRIES_PATH, UPDATE, WORDS_PATH,
+    INVALID_LABEL, INVALID, SUCCESS, NOT_SUCCESS, NOT_PARSED, RESULT)
 
 
 logger = get_logger(__name__)
@@ -26,10 +26,10 @@ logger = get_logger(__name__)
 
 class PrivateShared(GameMaster):
     """Implement mechanisms for playing PrivateShared."""
-    def __init__(self, experiment: Dict, player_backends: List[str]):
-        super().__init__(GAME_NAME, experiment, player_backends)
+    def __init__(self, experiment: Dict, player_models: List[Model]):
+        super().__init__(GAME_NAME, experiment, player_models)
         self.subtype = experiment['name']
-        self.model_name = self.player_backends[0]
+        self.model_name = self.player_models[0].get_name()
         # load necessary texts
         probes_path = PROBES_PATH.format(self.subtype)
         self.probing_questions = self.load_json(probes_path)
@@ -56,22 +56,34 @@ class PrivateShared(GameMaster):
               requests: Dict[str, int],
               probes: Dict[int, Dict[str, int]],
               slots: Dict[str, str],
-              tag: str
+              tag: str,
+              lang: str,
               ) -> None:
+
+        # load language specific words
+        words = self.load_json(WORDS_PATH.format(lang))
+        self.answer = words['ANSWER']
+        self.aside = words['ASIDE']
+        self.me = words['ME']
+        self.dummy_prompt = words['DUMMY_PROMPT']
+        self.probe_text = words['PROBE']
+        self.yes = words['YES']
+        self.no = words['NO']
 
         self.questioner_tag = f"{tag}: "
         self.initial_prompt = initial_prompt
         self.probing = probes
         self.probe_gt = {slot: i for i, slot in enumerate(request_order)}
         self.game = PrivateSharedGame(
-            self.subtype, request_order, requests, slots, self.model_name)
+            self.subtype, request_order, requests, slots,
+            self.player_models[0], words)
         # one probing before the game starts and one after each request
         self.n_probe_turns = self.game.max_turns + 1
         # initialise turn counters
         self.request_counts = [0] * self.n_probe_turns
         self.parsed_request_counts = [0] * self.n_probe_turns
         self.violated_request_counts = [0] * self.n_probe_turns
-
+    
         self.log_players({
             'GM': 'Game master for privateshared',
             'Player 1': f'Answerer: {self.model_name}',
@@ -127,7 +139,7 @@ class PrivateShared(GameMaster):
         logger.info('Game turn: %d', self.game.current_turn)
 
         # pseudo prompt to questioner
-        action = {'type': 'send message', 'content': DUMMY_PROMPT}
+        action = {'type': 'send message', 'content': self.dummy_prompt}
         self.log_event(from_='GM', to='Player 2', action=action)
 
         # get request
@@ -178,10 +190,10 @@ class PrivateShared(GameMaster):
 
     def _parse_slot_response(self, response: str) -> str:
         """Extract parsed answer in slot filling turn."""
-        if not response.startswith(ANSWER.strip()):
+        if not response.startswith(self.answer.strip()):
             logger.warning(NOT_PARSED)
             return INVALID
-        clean_response = self._filter_tag(response, ANSWER.strip())
+        clean_response = self._filter_tag(response, self.answer.strip())
         return clean_response
 
     def _is_slot_filled(self, answer: str) -> bool:
@@ -202,11 +214,6 @@ class PrivateShared(GameMaster):
                 self.log_event(from_='GM', to='GM', action=action)
                 self.probe_gt[slot] = turn
 
-    def _get_gold_pred(self, turns: List) -> Tuple[List, List]:
-        """Retrieve the gold standard and the predictions for all turns."""
-        gold, pred = zip(*[(item['gt'], item['value']) for item in turns])
-        return gold, pred
-
     def _log_eval_assets(self) -> None:
         """Log everything needed for the evaluation."""
         self.log_key(ms.METRIC_REQUEST_COUNT,
@@ -218,6 +225,160 @@ class PrivateShared(GameMaster):
         self.log_key('Filled Slots', self.filled_slots)
         self.log_key('Aborted', self.aborted)
         self.log_key('Played Probe Rounds', self.played_probing_rounds)
+
+    def _get_gt(self, turn_idx: int, question_type: str) -> int:
+        """Retrieve the ground truth value for a slot at a given turn."""
+        return 1 if turn_idx > self.probe_gt[question_type] else 0
+
+    def _create_probe_dic(self, turn_idx: int, key: str, idx: int) -> Dict:
+        """Return the initialised probe dictionary."""
+        question = self.probing_questions[key][idx]
+        return {'target': key.upper(),
+                'question': self.probe_text.format(question),
+                'gt': self._get_gt(turn_idx, key)}
+
+    def _create_turn_probes(self, turn_idx: int) -> List[Dict]:
+        """Return a list of probing dictionaries."""
+        return [self._create_probe_dic(turn_idx, key, idx)
+                for key, idx in self.probing[str(turn_idx)].items()]
+
+    def probe(self, game: PrivateSharedGame) -> Tuple[List[Dict], bool]:
+        """Perform a round of probing."""
+        action = {'type': 'info', 'content': 'Begin probing'}
+        self.log_event(from_='GM', to='GM', action=action)
+        turn = game.current_turn
+        probes = self._create_turn_probes(turn)
+        success_by_round = []
+        for probe in probes:
+            history = game.messages.copy()
+            history.append({'role': 'user', 'content': ''})
+            # perform a probing loop, with retries up to maximum retries
+            probing_results = self._probing_loop(probe, history, turn, game)
+            answer, parsed_response, successful, tries = probing_results
+            # add results to the probe object
+            probe['answer'] = answer
+            probe['value'] = self._convert_response(parsed_response)
+            probe['tries'] = tries
+            self._log_probing_outcome(probe, successful, tries)
+            success_by_round.append(successful)
+            if not successful:
+                # interrupt immediately
+                break
+
+        probing_successful = all(success_by_round)
+        if probing_successful:
+            # actual valid rounds for posterior evaluation
+            self.played_probing_rounds += 1
+        action = {'type': 'info', 'content': 'End probing'}
+        self.log_event(from_='GM', to='GM', action=action)
+
+        return probes, probing_successful
+
+    def _probing_loop(self,
+                      probe: Dict,
+                      history: list,
+                      turn: int,
+                      game: PrivateSharedGame
+                      ) -> Tuple[str, str, bool, int]:
+        """Perform a probing round until valid response or max attempts."""
+        tries = 1
+        successful = False
+        while tries <= len(self.retries):
+            # pose probing question
+            question = self._get_probe_content(probe['question'], tries)
+            history[-1]['content'] = question
+            action = {'type': 'probe question', 'content': question}
+            self.log_event(from_='GM', to='Player 1', action=action)
+            # get reply
+            prompt, raw_answer, answer = game.answerer(history, turn)
+            action = {'type': 'probe answer', 'content': answer}
+            self.log_event(from_='Player 1', to='GM', action=action,
+                           call=(prompt, raw_answer))
+            self.request_counts[turn] += 1
+            # parse the response
+            parsed_response = self._parse_probing_response(answer)
+            action = {'type': 'parse', 'content': parsed_response}
+            self.log_event(from_='GM', to='GM', action=action)
+            # check if valid response, otherwise try again
+            if parsed_response in (self.yes, self.no):
+                successful = True
+                self.parsed_request_counts[turn] += 1
+                break
+            self.violated_request_counts[turn] += 1
+            tries += 1
+
+        return answer, parsed_response, successful, tries
+
+    def _get_probe_content(self, question: str, tries: int) -> str:
+        """Build probing question."""
+        return question[:].replace(self.me, f'{self.me}{self.retries[tries - 1]} ')
+
+    def _log_probing_outcome(self, probe: Dict, successful: bool, tries: int):
+        if not successful:
+            content = NOT_SUCCESS.format(probe['target'])
+        else:
+            content = SUCCESS.format(probe['target'], tries)
+        # answer valid?
+        action = {'type': 'metadata', 'content': content}
+        self.log_event(from_='GM', to='GM', action=action)
+        logger.info(content)
+        # answer correct?
+        result = '' if probe['value'] == probe['gt'] else 'in'
+        action = {'type': 'check', 'content': RESULT.format(result)}
+        self.log_event(from_='GM', to='GM', action=action)
+
+    @staticmethod
+    def _filter_tag(answer: str, tag: str) -> str:
+        """Remove a tag from a utterance."""
+        filtered = answer.replace(tag, '')
+        return filtered.strip()
+
+    def _parse_probing_response(self, response: str) -> str:
+        """Extract parsed answer in probing turn."""
+        if not response.startswith(self.aside.strip()):
+            return INVALID
+        clean_response = self._filter_tag(response, self.aside.strip())
+        if clean_response.lower().startswith(self.yes):
+            return self.yes
+        if clean_response.lower().startswith(self.no):
+            return self.no
+        logger.warning(NOT_PARSED)
+        return INVALID
+
+    def _convert_response(self, response: str) -> bool:
+        """Turn probing response into integer (0: negation, 1: affirmation)."""
+        if response == self.yes:
+            return 1
+        if response == self.no:
+            return 0
+        return INVALID_LABEL
+
+    @classmethod
+    def applies_to(cls, game_name: str) -> bool:
+        return game_name == GAME_NAME
+
+
+class PrivateSharedScorer(GameScorer):
+
+    def __init__(self, experiment: Dict, game_instance: Dict):
+        super().__init__(GAME_NAME, experiment, game_instance)
+        self.slots = game_instance["slots"]
+
+    def compute_scores(self, episode_interactions: Dict) -> None:
+        logs = episode_interactions
+        gold = []
+        pred = []
+        aborted = logs['Aborted']
+        for turn in range(logs['Played Probe Rounds']):
+            turn_gt, turn_pred = self._compute_turn_scores(logs, turn)
+            gold += turn_gt
+            pred += turn_pred
+            # n_probes = n_slots + 1, we take the third round of probing here
+            if turn == int((len(self.slots) + 1) / 2) - 1:
+                mid_acc = acc_score(turn_gt, turn_pred) if not aborted else np.nan
+                self.log_episode_score('Middle-Accuracy', mid_acc)
+
+        self._compute_episode_scores(gold, pred, logs, aborted)
 
     def _compute_turn_scores(self, logs: Dict, turn: int) -> Tuple[List, List]:
         """Compute and log turn-level scores."""
@@ -256,7 +417,7 @@ class PrivateShared(GameMaster):
         trunc_kappa = max(0, kappa) if not aborted else np.nan
         filled = logs['Filled Slots']
         sf_acc = sum(filled) / len(filled) if not aborted else np.nan
-        bench_score = self.compute_bench_score(sf_acc, trunc_kappa)
+        bench_score = PrivateSharedScorer.compute_bench_score(sf_acc, trunc_kappa)
 
         self.log_episode_score('Accuracy', acc)
         self.log_episode_score('Kappa', kappa)
@@ -279,21 +440,10 @@ class PrivateShared(GameMaster):
         self.log_episode_score(ms.METRIC_REQUEST_COUNT_VIOLATED, violated_reqs)
         self.log_episode_score(ms.METRIC_REQUEST_SUCCESS, parsed_reqs / reqs)
 
-    def compute_scores(self, episode_interactions: Dict) -> None:
-        logs = episode_interactions
-        gold = []
-        pred = []
-        aborted = logs['Aborted']
-        for turn in range(logs['Played Probe Rounds']):
-            turn_gt, turn_pred = self._compute_turn_scores(logs, turn)
-            gold += turn_gt
-            pred += turn_pred
-            # n_probes = n_slots + 1, we take the third round of probing here
-            if turn == int((len(self.game.slots) + 1) / 2) - 1:
-                mid_acc = acc_score(turn_gt, turn_pred) if not aborted else np.nan
-                self.log_episode_score('Middle-Accuracy', mid_acc)
-
-        self._compute_episode_scores(gold, pred, logs, aborted)
+    def _get_gold_pred(self, turns: List) -> Tuple[List, List]:
+        """Retrieve the gold standard and the predictions for all turns."""
+        gold, pred = zip(*[(item['gt'], item['value']) for item in turns])
+        return gold, pred
 
     @staticmethod
     def compute_bench_score(sf_acc: float, kappa: float) -> float:
@@ -305,135 +455,6 @@ class PrivateShared(GameMaster):
         # harmonic mean between accuracy and truncated kappa
         # normalised to 0-100
         return 100 * (2 * sf_acc * kappa / (sf_acc + kappa))
-
-    def _get_gt(self, turn_idx: int, question_type: str) -> int:
-        """Retrieve the ground truth value for a slot at a given turn."""
-        return 1 if turn_idx > self.probe_gt[question_type] else 0
-
-    def _create_probe_dic(self, turn_idx: int, key: str, idx: int) -> Dict:
-        """Return the initialised probe dictionary."""
-        question = self.probing_questions[key][idx]
-        return {'target': key.upper(),
-                'question': PROBE.format(question),
-                'gt': self._get_gt(turn_idx, key)}
-
-    def _create_turn_probes(self, turn_idx: int) -> List[Dict]:
-        """Return a list of probing dictionaries."""
-        return [self._create_probe_dic(turn_idx, key, idx)
-                for key, idx in self.probing[str(turn_idx)].items()]
-
-    def probe(self, game: PrivateSharedGame) -> Tuple[List[Dict], bool]:
-        """Perform a round of probing."""
-        action = {'type': 'info', 'content': 'Begin probing'}
-        self.log_event(from_='GM', to='GM', action=action)
-        turn = game.current_turn
-        probes = self._create_turn_probes(turn)
-        success_by_round = []
-        for probe in probes:
-            history = game.messages.copy()
-            history.append({'role': 'user', 'content': ''})
-            # perform a probing loop, with retries up to maximum retries
-            probing_results = self._probing_loop(probe, history, turn, game)
-            answer, parsed_response, successful, tries = probing_results
-            # add results to the probe object
-            probe['answer'] = answer
-            probe['value'] = self._convert_response(parsed_response)
-            probe['tries'] = tries
-            self._log_probing_outcome(probe, successful, tries)
-            success_by_round.append(successful)
-
-        probing_successful = all(success_by_round)
-        if probing_successful:
-            # actual valid rounds for posterior evaluation
-            self.played_probing_rounds += 1
-        action = {'type': 'info', 'content': 'End probing'}
-        self.log_event(from_='GM', to='GM', action=action)
-
-        return probes, probing_successful
-
-    def _probing_loop(self,
-                      probe: Dict,
-                      history: list,
-                      turn: int,
-                      game: PrivateSharedGame
-                      ) -> Tuple[str, str, bool, int]:
-        """Perform a probing round until valid response or max attempts."""
-        tries = 1
-        successful = False
-        while tries <= len(self.retries):
-            # pose probing question
-            question = self._get_probe_content(probe['question'], tries)
-            history[-1]['content'] = question
-            action = {'type': 'probe question', 'content': question}
-            self.log_event(from_='GM', to='Player 1', action=action)
-            # get reply
-            prompt, raw_answer, answer = game.answerer(history, turn)
-            action = {'type': 'probe answer', 'content': answer}
-            self.log_event(from_='Player 1', to='GM', action=action,
-                           call=(prompt, raw_answer))
-            self.request_counts[turn] += 1
-            # parse the response
-            parsed_response = self._parse_probing_response(answer)
-            action = {'type': 'parse', 'content': parsed_response}
-            self.log_event(from_='GM', to='GM', action=action)
-            # check if valid response, otherwise try again
-            if parsed_response in (YES, NO):
-                successful = True
-                self.parsed_request_counts[turn] += 1
-                break
-            self.violated_request_counts[turn] += 1
-            tries += 1
-
-        return answer, parsed_response, successful, tries
-
-    def _get_probe_content(self, question: str, tries: int) -> str:
-        """Build probing question."""
-        return question[:].replace(ME, f'{ME}{self.retries[tries - 1]} ')
-
-    def _log_probing_outcome(self, probe: Dict, successful: bool, tries: int):
-        if not successful:
-            content = NOT_SUCCESS.format(probe['target'])
-        else:
-            content = SUCCESS.format(probe['target'], tries)
-        # answer valid?
-        action = {'type': 'metadata', 'content': content}
-        self.log_event(from_='GM', to='GM', action=action)
-        logger.info(content)
-        # answer correct?
-        result = '' if probe['value'] == probe['gt'] else 'in'
-        action = {'type': 'check', 'content': RESULT.format(result)}
-        self.log_event(from_='GM', to='GM', action=action)
-
-    @staticmethod
-    def _filter_tag(answer: str, tag: str) -> str:
-        """Remove a tag from a utterance."""
-        filtered = answer.replace(tag, '')
-        return filtered.strip()
-
-    def _parse_probing_response(self, response: str) -> str:
-        """Extract parsed answer in probing turn."""
-        if not response.startswith(ASIDE.strip()):
-            return INVALID
-        clean_response = self._filter_tag(response, ASIDE.strip())
-        if clean_response.lower().startswith(YES):
-            return YES
-        if clean_response.lower().startswith(NO):
-            return NO
-        logger.warning(NOT_PARSED)
-        return INVALID
-
-    @staticmethod
-    def _convert_response(response: str) -> bool:
-        """Turn probing response into integer (0: negation, 1: affirmation)."""
-        if response == YES:
-            return 1
-        if response == NO:
-            return 0
-        return INVALID_LABEL
-
-    @classmethod
-    def applies_to(cls, game_name: str) -> bool:
-        return game_name == GAME_NAME
 
 
 class PrivateSharedGameBenchmark(GameBenchmark):
@@ -447,12 +468,11 @@ class PrivateSharedGameBenchmark(GameBenchmark):
     def get_description(self):
         return "Questioner and answerer in scorekeeping game."
 
-    def create_game_master(self,
-                           experiment: Dict,
-                           player_backends: List[str]
-                           ) -> GameMaster:
-        return PrivateShared(experiment, player_backends)
+    def create_game_master(self, experiment: Dict, player_models: List[Model]) -> GameMaster:
+        return PrivateShared(experiment, player_models)
 
+    def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
+        return PrivateSharedScorer(experiment, game_instance)
 
 def main():
     """Play the first episode in the instances."""

@@ -1,22 +1,28 @@
 import random
 from typing import List, Dict, Tuple
-import sys
-import os
+import re
+import json
+from queue import Queue
+from copy import deepcopy
+from time import sleep
 
-cwd = os.getcwd()
-additional_path = os.path.join(cwd, "games", "mm_mapworld")
+# import sys
+# import os
+# cwd = os.getcwd()
+# additional_path = os.path.join(cwd, "games", "mm_mapworld")
+# sys.path.append(additional_path)
 
-sys.path.append(additional_path)
-
-import utils
+import games.mm_mapworld.utils as utils
 
 import clemgame.metrics as ms
-from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster
+from backends import Model, CustomResponseModel
+from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster, GameScorer
 from clemgame import get_logger
 from clemgame.clemgame import Player
 
 from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC_REQUEST_COUNT, \
-    METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_COUNT_PARSED, METRIC_REQUEST_SUCCESS, BENCH_SCORE
+    METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_COUNT_PARSED, METRIC_REQUEST_SUCCESS, BENCH_SCORE, \
+        BENCH_SCORE
 
 
 
@@ -38,8 +44,8 @@ DELTA_TO_CARDINAL = {
 
 
 class PathWalker(Player):
-    def __init__(self, model_name: str):
-        super().__init__(model_name)
+    def __init__(self, model: Model):
+        super().__init__(model)
         #self.model_name: str = model_name
         # a list to keep the dialogue history
         # self.history: List = []
@@ -51,8 +57,8 @@ class PathWalker(Player):
     
 
 class PathDescriber(Player):
-    def __init__(self, model_name, instance_data):
-        super().__init__(model_name)
+    def __init__(self, model, instance_data):
+        super().__init__(model)
         self.imgs = instance_data["imgs"]
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
@@ -88,20 +94,20 @@ class PathDescriber(Player):
         invalid_direction = old_room == self.current_room
         available_directions = self.get_available_directions(self.current_room)
         if invalid_direction:
-            response = "The move is not valid. You are still in the the same room. "
+            response = "The move was invalid and we are still in the room you are seeing."
         else:
-            response = "You have made a step and entered a different room. "
-        response += "Currently available directions: "
+            response = "We are now in the room shown to you."
+        response += "\nFrom here we can go: "
         response += ", ".join(available_directions)
-        response += ". What is your next instruction?"
+        response += ". What should we do?"
         return response
 
         
 class MmMapWorld(DialogueGameMaster):
     """Implement mechanisms for playing MM-MapWorld."""
 
-    def __init__(self, experiment: Dict, player_backends: List[str]):
-        super().__init__(GAME_NAME, experiment, player_backends)
+    def __init__(self, experiment: Dict, player_models: List[Model]):
+        super().__init__(GAME_NAME, experiment, player_models)
 
         self.turns = []
         self.aborted: bool = False
@@ -137,8 +143,8 @@ class MmMapWorld(DialogueGameMaster):
         self.init_prompt = game_instance["prompt"]
         self.visited_nodes=[self.current_room]
 
-        self.describer = PathDescriber('mock', instance_data)
-        self.walker = PathWalker(self.player_backends[0])
+        self.describer = PathDescriber(CustomResponseModel(), instance_data)
+        self.walker = PathWalker(self.player_models[0])
         self.add_player(self.walker)
         self.add_player(self.describer)
 
@@ -154,38 +160,59 @@ class MmMapWorld(DialogueGameMaster):
         if not self.aborted and self.current_turn < MAX_TURNS and not self.stop:
             return True
         return False
+    
+    def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
+        """
+        Hook
+
+        Decide if a response utterance should be modified. If not simply return the utterance.
+
+        When a modified utterance and a true value is returned, then a 'parse' event is logged.
+
+        :param player: that produced the response
+        :param utterance: to be potentially modified
+        :return: the (modified) utterance and if to log the parse action (default: True)
+        """
+        done_regex = r"DONE"
+        move_regex = r"GO:\s*(north|east|south|west)"
+        if player == self.walker:
+            utterance = utterance.replace("\n", "").strip()
+            for word in ["West", "North", "East", "South"]:
+                utterance = utterance.replace(word, word.lower())
+            done_hit = re.search(done_regex, utterance)
+            if done_hit:
+                utterance = done_hit.group()
+            hit = re.search(move_regex, utterance)
+            if hit:
+                utterance = hit.group()
+        return utterance, True
 
     def _validate_player_response(self, player: Player, answer: str) -> bool:
         """Check if the utterance conforms to rules (cloudgame specific)."""
+        done_regex = r"DONE"
+        move_regex = r"GO:\s*(north|east|south|west)"
+        answer = answer.replace("\n", "").strip()
+        for word in ["West", "North", "East", "South"]:
+            answer = answer.replace(word, word.lower())
         if player == self.walker:
             # in case we abort we set the next move to None
             self.move = None
             # Check if the answer begins with 'MOVE:'
-            if answer.startswith("DONE"):
+            done_hit = re.search(done_regex, answer)
+            if done_hit:
                 self.stop = True
                 self.log_to_self("DONE", True)
                 return True
-            if not answer.startswith("GO:"):
+            hit = re.search(move_regex, answer)
+            if not hit:
                 self.aborted = True
                 self.log_to_self("Invalid format", "Game aborted.")
                 return False
-            
-            without_move = answer.replace('GO:', '')
-            words = without_move.strip().split()
-            new_dir = words[0]
-            # the following word should be one of ['north', 'east', 'south', 'west', 'stop']
-            if new_dir not in ['north', 'east', 'south', 'west', 'stop']:
-                self.aborted = True
-                self.log_to_self("Invalid direction", "Game aborted.")
-                return False
-            # everything after that can be disregarded
-            
+            new_dir = hit.group(1)
             if new_dir == 'stop':
                 self.stop = True
-                self.log_to_self("stop", True)
-                
-            self.move = words[0]
-            
+                self.log_to_self("DONE", True)
+            self.move = new_dir
             self.log_to_self("Valid format", "Continue")
        
         return True
@@ -197,15 +224,19 @@ class MmMapWorld(DialogueGameMaster):
             self.add_user_message(self.walker, utterance, player.imgs[self.current_room])
         
     def _on_after_turn(self, turn_idx: int):
-        old_room = self.current_room
-        if self.move is not None:
-            self.cardinal_room_change(self.move)
-
-        self.visited_nodes.append(self.current_room)
-
-        self.log_to_self(type_ = "move", value = f"from {str(old_room)} to {self.current_room}")
         if self.aborted:
             self.log_to_self(type_ = "aborted", value = self.aborted)
+        elif self.stop:
+            pass
+        else:
+            old_room = self.current_room
+            if self.move is not None:
+                self.cardinal_room_change(self.move)
+
+            self.visited_nodes.append(self.current_room)
+
+            self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
+            
 
 
 
@@ -224,45 +255,138 @@ class MmMapWorld(DialogueGameMaster):
         self.add_message(player, utterance, role="user", image= image)
         
         
-    ####### scoring
-    
-    def compute_scores(self, episode_interactions) -> None:
+    ####### scoring      
         
-        moves = 0
+class MM_MapWorldScorer(GameScorer):
+    def __init__(self, experiment: Dict, game_instance: Dict):
+        super().__init__(GAME_NAME, experiment, game_instance)
+        instance_data = utils.load_instance(self.game_instance)
+        self.imgs = instance_data["imgs"]
+        self.nodes = instance_data["nodes"]
+        self.edges = instance_data["edges"]
+        self.start_node = instance_data["start"]
+        
+    def adj(self, node):
+        return set([ed[1] for ed in self.edges if ed[0] == node])
+    
+    def visited_all(self, visited, to_visit):
+        return all([n in visited for n in to_visit])
+    
+    def get_available_moves(self, node, visited):
+        return [edge for edge in self.edges if node == edge[0] and (edge[0] in visited or edge[1] in visited)]
+    
+    def find_best_moves(self, current, visited):
+        to_visit = [ed[1] for ed in self.edges if ed[0] in visited and ed[1] not in visited]
+        start = [current]
+        q = Queue()
+        q.put(start)
+        found = set()
+        max_len = 100
+        while True:
+            if not q.qsize():
+                break
+            n = q.get()
+            if len(n) > max_len:
+                break
+            if self.visited_all(n, to_visit):
+                found.add((n[0], n[1]))
+                max_len = len(n)
+                continue
+            if len(n) == max_len:
+                continue
+            avail = self.get_available_moves(n[-1], visited)
+            if all([move[1] in n for move in avail]):
+                for move in avail:
+                    new = deepcopy(n)
+                    new.append(move[1])
+                    q.put(new)
+            else:
+                for move in avail:
+                    if not move[1] in n:
+                        new = deepcopy(n)
+                        new.append(move[1])
+                        q.put(new)
+        return found
+        
+    def compute_scores(self, episode_interactions) -> None:
+        current = self.start_node
+        seen = {self.start_node}
+        seen.update(self.adj(self.start_node))
+        visited = {self.start_node}
+        valid_moves = 0
+        invalid_moves = 0
         stopped = False
+        aborted = False
+        good_move = []
         
         for turn in episode_interactions["turns"]:
-            aborted = False
-            
-            
+
             for event in turn:
                 action = event["action"]
                 if action["type"] == "aborted":
                     if action["content"]:
                         aborted = True
                 if action['type'] == "move":
-                    pure = action['content'].replace('from', '')
-                    pure = pure.split('to')
-                    if not pure[0].strip() == pure[1].strip():
-                        moves += 1
-                if action['type'] == "stop":
+                    cont = json.loads(action['content'])
+                    old = tuple(cont["old"])
+                    new = tuple(cont["new"])
+                    if not old == new:
+                        valid_moves += 1
+                    else:
+                        invalid_moves += 1
+                    
+                    if not self.visited_all(visited, self.nodes) and not old == new:
+                        best_moves = self.find_best_moves(old, visited)
+#                         print(best_moves)
+                        if (old,new) in best_moves:
+                            good_move.append(True)
+
+                        else:
+                            good_move.append(False)
+                    else:
+                        good_move.append(False)
+                    current = new
+                    seen.update(self.adj(current))
+                    visited.add(current)
+                    
+                if action['type'] == "DONE":
                     if action["content"]:
                         stopped = True
+                
                         
-                        
+        for i, val in enumerate(good_move):
+            self.log_turn_score(i, "effiencient_move", val)                
         if aborted:
             self.log_episode_score(METRIC_ABORTED, 1)
             self.log_episode_score(METRIC_SUCCESS, 0)
             self.log_episode_score(METRIC_LOSE, 0)
         else:
+            if stopped:
+                if self.visited_all(visited, self.nodes):
+                    self.log_episode_score(METRIC_SUCCESS, 1)
+                    self.log_episode_score(METRIC_LOSE, 0)
+                else:
+                    self.log_episode_score(METRIC_SUCCESS, 0)
+                    self.log_episode_score(METRIC_LOSE, 1)
+            else:
+                self.log_episode_score(METRIC_SUCCESS, 0)
+                self.log_episode_score(METRIC_LOSE, 1)
             self.log_episode_score(METRIC_ABORTED, 0)
             
-        self.log_episode_score('moves', moves)
+        self.log_episode_score('moves', valid_moves + invalid_moves)
+        self.log_episode_score('valid_moves', valid_moves)
+        self.log_episode_score('invalid_moves', invalid_moves)
         self.log_episode_score('stopped', int(stopped))
+        self.log_episode_score('visited', len(visited))
+        self.log_episode_score('seen', len(seen))
+        eff = 100*sum(good_move)/len(good_move)
+        self.log_episode_score('effieciency', eff)
+        exp = 100*len(visited)/len(self.nodes)
+        self.log_episode_score('exploration', exp)
+        self.log_episode_score(BENCH_SCORE, (2*exp*eff)/(eff+exp))
+        
+        
                 
-
-
-
 
 class MmMapWorldBenchmark(GameBenchmark):
     """Integrate the game into the benchmark run."""
@@ -280,6 +404,9 @@ class MmMapWorldBenchmark(GameBenchmark):
     # copy this, replacing the name of the game master in the return statement
     def create_game_master(self,
                            experiment: Dict,
-                           player_backends: List[str]
+                           player_models: List[Model]
                            ) -> GameMaster:
-        return MmMapWorld(experiment, player_backends)
+        return MmMapWorld(experiment, player_models)
+    
+    def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
+        return MM_MapWorldScorer(experiment, game_instance)
