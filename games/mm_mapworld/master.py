@@ -321,7 +321,7 @@ class MM_MapWorldScorer(GameScorer):
                     visited.add(current)
                     best_moves = self.find_best_moves(current, visited)
                     if (cont["old"],cont["new"]) in best_moves:
-                        good_move.append[True]
+                        good_move.append(True)
                         
                     else:
                         good_move.append(False)
@@ -347,9 +347,9 @@ class MM_MapWorldScorer(GameScorer):
         self.log_episode_score('seen', len(seen))
         eff = 100*sum(good_move)/len(good_move)
         self.log_episode_score('effieciency', eff)
-        suc = 100*len(good_move)/len(self.nodes)
-        self.log_episode_score('success', suc)
-        self.log_episode_score(BENCH_SCORE, (2*suc*eff)/(eff+suc))
+        exp = 100*len(visited)/len(self.nodes)
+        self.log_episode_score('exploration', exp)
+        self.log_episode_score(BENCH_SCORE, (2*exp*eff)/(eff+exp))
         
         
                 
