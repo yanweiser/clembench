@@ -1,5 +1,7 @@
 from typing import List, Dict, Tuple, Any
 from retry import retry
+from PIL import Image
+from io import BytesIO
 
 
 import json
@@ -19,6 +21,7 @@ class OpenAI(backends.Backend):
         api_key = creds[NAME]["api_key"]
         organization = creds[NAME]["organisation"] if "organisation" in creds[NAME] else None
         self.client = openai.OpenAI(api_key=api_key, organization=organization)
+
 
     def list_models(self):
         models = self.client.models.list()
@@ -87,6 +90,7 @@ class OpenAIModel(backends.Model):
                 ]
         :return: the continuation
         """
+
         if self.is_vision:
             messages = self.apply_vision_format(messages)
         prompt = messages
