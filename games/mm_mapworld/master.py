@@ -173,11 +173,18 @@ class MmMapWorld(DialogueGameMaster):
         :param utterance: to be potentially modified
         :return: the (modified) utterance and if to log the parse action (default: True)
         """
-        
+        done_regex = r"DONE"
+        move_regex = r"GO:\s*(north|east|south|west)"
         if player == self.walker:
             utterance = utterance.replace("\n", "").strip()
             for word in ["West", "North", "East", "South"]:
                 utterance = utterance.replace(word, word.lower())
+            done_hit = re.search(done_regex, utterance)
+            if done_hit:
+                utterance = done_hit.group()
+            hit = re.search(move_regex, utterance)
+            if hit:
+                utterance = hit.group()
         return utterance, True
 
     def _validate_player_response(self, player: Player, answer: str) -> bool:
@@ -204,7 +211,7 @@ class MmMapWorld(DialogueGameMaster):
             new_dir = hit.group(1)
             if new_dir == 'stop':
                 self.stop = True
-                self.log_to_self("stop", True)
+                self.log_to_self("DONE", True)
             self.move = new_dir
             self.log_to_self("Valid format", "Continue")
        
@@ -217,15 +224,18 @@ class MmMapWorld(DialogueGameMaster):
             self.add_user_message(self.walker, utterance, player.imgs[self.current_room])
         
     def _on_after_turn(self, turn_idx: int):
-        old_room = self.current_room
-        if self.move is not None:
-            self.cardinal_room_change(self.move)
-
-        self.visited_nodes.append(self.current_room)
-
-        self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
         if self.aborted:
             self.log_to_self(type_ = "aborted", value = self.aborted)
+        elif self.stop:
+            pass
+        else:
+            old_room = self.current_room
+            if self.move is not None:
+                self.cardinal_room_change(self.move)
+
+            self.visited_nodes.append(self.current_room)
+
+            self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
             
 
 
@@ -262,8 +272,8 @@ class MM_MapWorldScorer(GameScorer):
     def visited_all(self, visited, to_visit):
         return all([n in visited for n in to_visit])
     
-    def get_available_moves(self, node):
-        return [edge for edge in self.edges if node == edge[0]]
+    def get_available_moves(self, node, visited):
+        return [edge for edge in self.edges if node == edge[0] and (edge[0] in visited or edge[1] in visited)]
     
     def find_best_moves(self, current, visited):
         to_visit = [ed[1] for ed in self.edges if ed[0] in visited and ed[1] not in visited]
@@ -284,7 +294,7 @@ class MM_MapWorldScorer(GameScorer):
                 continue
             if len(n) == max_len:
                 continue
-            avail = self.get_available_moves(n[-1])
+            avail = self.get_available_moves(n[-1], visited)
             if all([move[1] in n for move in avail]):
                 for move in avail:
                     new = deepcopy(n)
@@ -339,7 +349,7 @@ class MM_MapWorldScorer(GameScorer):
                     seen.update(self.adj(current))
                     visited.add(current)
                     
-                if action['type'] == "stop":
+                if action['type'] == "DONE":
                     if action["content"]:
                         stopped = True
                 
@@ -351,6 +361,16 @@ class MM_MapWorldScorer(GameScorer):
             self.log_episode_score(METRIC_SUCCESS, 0)
             self.log_episode_score(METRIC_LOSE, 0)
         else:
+            if stopped:
+                if self.visited_all(visited, self.nodes):
+                    self.log_episode_score(METRIC_SUCCESS, 1)
+                    self.log_episode_score(METRIC_LOSE, 0)
+                else:
+                    self.log_episode_score(METRIC_SUCCESS, 0)
+                    self.log_episode_score(METRIC_LOSE, 1)
+            else:
+                self.log_episode_score(METRIC_SUCCESS, 0)
+                self.log_episode_score(METRIC_LOSE, 1)
             self.log_episode_score(METRIC_ABORTED, 0)
             
         self.log_episode_score('moves', valid_moves + invalid_moves)
@@ -361,9 +381,9 @@ class MM_MapWorldScorer(GameScorer):
         self.log_episode_score('seen', len(seen))
         eff = 100*sum(good_move)/len(good_move)
         self.log_episode_score('effieciency', eff)
-        suc = 100*len(visited)/len(self.nodes)
-        self.log_episode_score('success', suc)
-        self.log_episode_score(BENCH_SCORE, (2*suc*eff)/(eff+suc))
+        exp = 100*len(visited)/len(self.nodes)
+        self.log_episode_score('exploration', exp)
+        self.log_episode_score(BENCH_SCORE, (2*exp*eff)/(eff+exp))
         
         
                 
