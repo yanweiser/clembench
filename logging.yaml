@@ -16,7 +16,8 @@ loggers:
   benchmark.run:
     handlers: [ console ]
   backends:
-    level: INFO
+    level: DEBUG
+    handlers: [ console, file_handler ]
   benchmark:
     level: DEBUG
   games:
