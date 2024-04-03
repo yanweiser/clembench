@@ -268,9 +268,6 @@ class MmMapWorld(DialogueGameMaster):
         self.did_reprompt = False
             
 
-
-
-
     ########## Multimodal specific functions:
 
     def add_message(self, player: Player, utterance: str, role: str, image = None):
