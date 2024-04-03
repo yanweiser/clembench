@@ -1,7 +1,6 @@
 from typing import List, Dict, Tuple, Any
 from retry import retry
-from PIL import Image
-from io import BytesIO
+
 
 
 import json

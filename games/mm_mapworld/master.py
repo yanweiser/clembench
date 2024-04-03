@@ -5,12 +5,7 @@ import json
 from queue import Queue
 from copy import deepcopy
 from time import sleep
-
-# import sys
-# import os
-# cwd = os.getcwd()
-# additional_path = os.path.join(cwd, "games", "mm_mapworld")
-# sys.path.append(additional_path)
+import numpy as np
 
 import games.mm_mapworld.utils as utils
 
@@ -46,9 +41,6 @@ DELTA_TO_CARDINAL = {
 class PathWalker(Player):
     def __init__(self, model: Model):
         super().__init__(model)
-        #self.model_name: str = model_name
-        # a list to keep the dialogue history
-        # self.history: List = []
 
     def _custom_response(self, messages, turn_idx) -> str:
         """Return a random direction."""
@@ -57,17 +49,18 @@ class PathWalker(Player):
     
 
 class PathDescriber(Player):
-    def __init__(self, model, instance_data):
+    def __init__(self, model, game_instance):
         super().__init__(model)
+        instance_data = utils.load_instance(game_instance)
         self.imgs = instance_data["imgs"]
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
         self.start = instance_data["start"]
         self.current_room = instance_data["start"]
-        self.init_prompt = instance_data["prompt"]
+        self.success_response = game_instance["success_response"]
+        self.invalid_response = game_instance["invalid_response"]
         self.visited_nodes=[self.current_room]
         
-
     def get_available_moves(self, node):
         return [edge for edge in self.edges if node == edge[0]]
     
@@ -83,7 +76,6 @@ class PathDescriber(Player):
         if (self.current_room, new_room) in self.edges:
             self.current_room = new_room
 
-        
     def _custom_response(self, messages, turn_idx) -> str:
         last_move = messages[-1]['content']
         without_move = last_move.replace('GO:', '')
@@ -94,12 +86,9 @@ class PathDescriber(Player):
         invalid_direction = old_room == self.current_room
         available_directions = self.get_available_directions(self.current_room)
         if invalid_direction:
-            response = "The move was invalid and we are still in the room you are seeing."
+            response = self.invalid_response.replace("$DIRECTIONS$", ", ".join(available_directions))
         else:
-            response = "We are now in the room shown to you."
-        response += "\nFrom here we can go: "
-        response += ", ".join(available_directions)
-        response += ". What should we do?"
+            response = self.success_response.replace("$DIRECTIONS$", ", ".join(available_directions))
         return response
 
         
@@ -112,6 +101,8 @@ class MmMapWorld(DialogueGameMaster):
         self.turns = []
         self.aborted: bool = False
         self.stop: bool = False
+        self.need_reprompt: bool = False
+        self.did_reprompt: bool = False
         self.experiment = experiment['name']
         
     def get_available_moves(self, node):
@@ -131,19 +122,30 @@ class MmMapWorld(DialogueGameMaster):
            
     def _on_setup(self, **game_instance):
         """" sets the information you specify in instances.json """
-        
         self.game_instance = game_instance
         instance_data = utils.load_instance(self.game_instance)
-        instance_data['prompt'] = game_instance["prompt"]
+        instance_data['initial_prompt'] = game_instance["initial_prompt"]
         self.imgs = instance_data["imgs"]
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
         self.start = instance_data["start"]
         self.current_room = instance_data["start"]
-        self.init_prompt = game_instance["prompt"]
+        self.init_prompt = game_instance["initial_prompt"]
         self.visited_nodes=[self.current_room]
+        
+        self.done_regex = re.compile(game_instance["done_regex"])
+        self.move_regex = re.compile(game_instance["move_regex"])
+        
+        self.done_const = game_instance["stop_construction"]
+        self.move_const = game_instance["move_construction"]
+        
+        self.use_images = game_instance["use_images"]
+        
+        self.do_reprompt = game_instance["reprompt"]
+        self.reprompt_loop = game_instance["reprompt_loop"]
+        self.reprompt_format = game_instance["reprompt_format"]
 
-        self.describer = PathDescriber(CustomResponseModel(), instance_data)
+        self.describer = PathDescriber(CustomResponseModel(), game_instance)
         self.walker = PathWalker(self.player_models[0])
         self.add_player(self.walker)
         self.add_player(self.describer)
@@ -151,14 +153,19 @@ class MmMapWorld(DialogueGameMaster):
     def _on_before_game(self):
         start_directions = self.describer.get_available_directions(self.describer.start)
         prompt = self.describer.init_prompt.replace('$INITIAL_DIRECTIONS$', ', '.join(start_directions))
-        initial_image = self.describer.imgs[self.start]
         # add initial prompt to dialogue
-        self.add_user_message(self.walker, prompt, image = initial_image)
+        if self.use_images:
+            initial_image = self.describer.imgs[self.start]
+            self.add_user_message(self.walker, prompt, image = initial_image)
+        else:
+            self.add_user_message(self.walker, prompt)
  
     def _does_game_proceed(self):
-        pass
-        if not self.aborted and self.current_turn < MAX_TURNS and not self.stop:
+        if not self.aborted and not self.stop and self.current_turn < MAX_TURNS:
             return True
+        if self.current_turn >= MAX_TURNS:
+            self.log_to_self(type_ = "aborted", value = self.aborted)
+            self.log_to_self("turn limit reached", True)
         return False
     
     def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
@@ -173,45 +180,48 @@ class MmMapWorld(DialogueGameMaster):
         :param utterance: to be potentially modified
         :return: the (modified) utterance and if to log the parse action (default: True)
         """
-        done_regex = r"DONE"
-        move_regex = r"GO:\s*(north|east|south|west)"
         if player == self.walker:
             utterance = utterance.replace("\n", "").strip()
-            for word in ["West", "North", "East", "South"]:
-                utterance = utterance.replace(word, word.lower())
-            done_hit = re.search(done_regex, utterance)
+            utterance = utterance.lower()
+            for word in [self.done_const, self.move_const]:
+                utterance = utterance.replace(word, word.upper())
+            done_hit = re.search(self.done_regex, utterance)
             if done_hit:
                 utterance = done_hit.group()
-            hit = re.search(move_regex, utterance)
+            hit = re.search(self.move_regex, utterance)
             if hit:
                 utterance = hit.group()
         return utterance, True
 
     def _validate_player_response(self, player: Player, answer: str) -> bool:
         """Check if the utterance conforms to rules (cloudgame specific)."""
-        done_regex = r"DONE"
-        move_regex = r"GO:\s*(north|east|south|west)"
         answer = answer.replace("\n", "").strip()
-        for word in ["West", "North", "East", "South"]:
-            answer = answer.replace(word, word.lower())
+        answer = answer.lower()
+        for word in [self.done_const, self.move_const]:
+            answer = answer.replace(word, word.upper())
         if player == self.walker:
             # in case we abort we set the next move to None
             self.move = None
             # Check if the answer begins with 'MOVE:'
-            done_hit = re.search(done_regex, answer)
+            done_hit = re.search(self.done_regex, answer)
             if done_hit:
                 self.stop = True
                 self.log_to_self("DONE", True)
                 return True
-            hit = re.search(move_regex, answer)
+            hit = re.search(self.move_regex, answer)
             if not hit:
+                if self.do_reprompt:
+                    if self.did_reprompt:
+                        self.aborted = True
+                        self.log_to_self("Invalid format", "Game aborted.")
+                        return False
+                    self.need_reprompt = True
+                    self.log_to_self("reprompting", "invalid format")
+                    return True
                 self.aborted = True
                 self.log_to_self("Invalid format", "Game aborted.")
                 return False
             new_dir = hit.group(1)
-            if new_dir == 'stop':
-                self.stop = True
-                self.log_to_self("DONE", True)
             self.move = new_dir
             self.log_to_self("Valid format", "Continue")
        
@@ -219,9 +229,27 @@ class MmMapWorld(DialogueGameMaster):
     
     def _after_add_player_response(self, player: Player, utterance: str):
         if player == self.walker:
-            self.add_user_message(self.describer, utterance)
+            if not self.need_reprompt or self.did_reprompt:
+                self.add_user_message(self.describer, utterance)
         if player == self.describer:
-            self.add_user_message(self.walker, utterance, player.imgs[self.current_room])
+            if self.use_images:
+                self.add_user_message(self.walker, utterance, player.imgs[self.current_room])
+            else:
+                self.add_user_message(self.walker, utterance)
+                
+    def _should_reprompt(self, player: Player):
+        if player == self.walker and self.need_reprompt and not self.did_reprompt:
+            return True
+        return False
+    
+    def _on_before_reprompt(self, player: Player):
+        avail = self.get_available_directions(self.current_room)
+        reprompt = self.reprompt_format
+        reprompt.replace("$DIRECTIONS$", ', '.join(avail))
+        if self.use_images:
+            self.add_user_message(self.walker, reprompt, self.imgs[self.current_room])
+        else:
+            self.add_user_message(self.walker, reprompt)
         
     def _on_after_turn(self, turn_idx: int):
         if self.aborted:
@@ -236,6 +264,8 @@ class MmMapWorld(DialogueGameMaster):
             self.visited_nodes.append(self.current_room)
 
             self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
+        self.need_reprompt = False
+        self.did_reprompt = False
             
 
 
@@ -315,7 +345,6 @@ class MM_MapWorldScorer(GameScorer):
         visited = {self.start_node}
         valid_moves = 0
         invalid_moves = 0
-        stopped = False
         aborted = False
         good_move = []
         
@@ -348,42 +377,40 @@ class MM_MapWorldScorer(GameScorer):
                     current = new
                     seen.update(self.adj(current))
                     visited.add(current)
-                    
-                if action['type'] == "DONE":
-                    if action["content"]:
-                        stopped = True
                 
                         
-        for i, val in enumerate(good_move):
-            self.log_turn_score(i, "effiencient_move", val)                
         if aborted:
+            for i, val in enumerate(good_move):
+                self.log_turn_score(i, "effiencient_move", np.NaN)
             self.log_episode_score(METRIC_ABORTED, 1)
-            self.log_episode_score(METRIC_SUCCESS, 0)
-            self.log_episode_score(METRIC_LOSE, 0)
+            self.log_episode_score(METRIC_SUCCESS, np.NaN)
+            self.log_episode_score(METRIC_LOSE, np.NaN)
+            self.log_episode_score('moves', np.NaN)
+            self.log_episode_score('valid_moves', np.NaN)
+            self.log_episode_score('invalid_moves', np.NaN)
+            self.log_episode_score('visited', np.NaN)
+            self.log_episode_score('seen', np.NaN)
+            self.log_episode_score('effieciency', np.NaN)
+            self.log_episode_score('exploration', np.NaN)
+            self.log_episode_score(BENCH_SCORE, np.NaN)
         else:
-            if stopped:
-                if self.visited_all(visited, self.nodes):
-                    self.log_episode_score(METRIC_SUCCESS, 1)
-                    self.log_episode_score(METRIC_LOSE, 0)
-                else:
-                    self.log_episode_score(METRIC_SUCCESS, 0)
-                    self.log_episode_score(METRIC_LOSE, 1)
+            self.log_episode_score(METRIC_ABORTED, 0)
+            if self.visited_all(visited, self.nodes):
+                self.log_episode_score(METRIC_SUCCESS, 1)
+                self.log_episode_score(METRIC_LOSE, 0)
             else:
                 self.log_episode_score(METRIC_SUCCESS, 0)
                 self.log_episode_score(METRIC_LOSE, 1)
-            self.log_episode_score(METRIC_ABORTED, 0)
-            
-        self.log_episode_score('moves', valid_moves + invalid_moves)
-        self.log_episode_score('valid_moves', valid_moves)
-        self.log_episode_score('invalid_moves', invalid_moves)
-        self.log_episode_score('stopped', int(stopped))
-        self.log_episode_score('visited', len(visited))
-        self.log_episode_score('seen', len(seen))
-        eff = 100*sum(good_move)/len(good_move)
-        self.log_episode_score('effieciency', eff)
-        exp = 100*len(visited)/len(self.nodes)
-        self.log_episode_score('exploration', exp)
-        self.log_episode_score(BENCH_SCORE, (2*exp*eff)/(eff+exp))
+            self.log_episode_score('moves', valid_moves + invalid_moves)
+            self.log_episode_score('valid_moves', valid_moves)
+            self.log_episode_score('invalid_moves', invalid_moves)
+            self.log_episode_score('visited', len(visited))
+            self.log_episode_score('seen', len(seen))
+            eff = 100*sum(good_move)/len(good_move)
+            self.log_episode_score('effieciency', eff)
+            exp = 100*len(visited)/len(self.nodes)
+            self.log_episode_score('exploration', exp)
+            self.log_episode_score(BENCH_SCORE, (2*exp*eff)/(eff+exp))
         
         
                 
