@@ -8,9 +8,11 @@ from typing import List, Dict, Tuple
 import numpy as np
 
 import clemgame.metrics as ms
-from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster
+from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster, GameScorer
 from clemgame import get_logger
 from clemgame.clemgame import Player
+
+from backends import Model, CustomResponseModel
 #from games.cloudgame.players import Speaker
 from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE, METRIC_REQUEST_COUNT, METRIC_REQUEST_COUNT_PARSED,  METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_SUCCESS
 from games.cloudgame.instancegenerator import GAME_NAME
@@ -19,14 +21,8 @@ from games.cloudgame.instancegenerator import GAME_NAME
 logger = get_logger(__name__)
 
 class Speaker(Player):
-    def __init__(self, model_name: str):
-        # always initialise the Player class with the model_name argument
-        # if the player is a program and you don't want to make API calls to
-        # LLMS, use model_name="programmatic"
-        super().__init__(model_name)
-        #self.model_name: str = model_name
-        # a list to keep the dialogue history
-        # self.history: List = []
+    def __init__(self, backend: Model):
+        super().__init__(backend)  
 
     def _custom_response(self, messages, turn_idx) -> str:
         """Return yes or no randomly."""
@@ -39,9 +35,8 @@ class Speaker(Player):
 
 class Judge(Player):
 
-    def __init__(self, name):
-        super().__init__("programmatic")
-        #self.name = name
+    def __init__(self):
+        super().__init__(CustomResponseModel())
 
     def _custom_response(self, messages, turn_idx):
         return "That seems right."
@@ -51,7 +46,7 @@ class Judge(Player):
 class Cloudgame(DialogueGameMaster):
     """Implement mechanisms for playing Cloudgame."""
 
-    def __init__(self, experiment: Dict, player_backends: List[str]):
+    def __init__(self, experiment: Dict, player_backends: List[Model]):
         super().__init__(GAME_NAME, experiment, player_backends)
         # fetch experiment parameters here
         self.max_words = 2
@@ -172,8 +167,16 @@ class Cloudgame(DialogueGameMaster):
         
 
 
-    def compute_scores(self, episode_interactions) -> None:
+        
 
+class CloudgameScorer(GameScorer):
+ 
+     def __init__(self, experiment: Dict, game_instance: Dict):
+         super().__init__(GAME_NAME, experiment, game_instance)
+         self.target_grid = game_instance["target_grid"] # necessary info to score the episode
+
+     def compute_scores(self, episode_interactions: Dict) -> None:
+         
         all_turn_scores = []
         for turn_idx, turn in enumerate(episode_interactions["turns"]):
             # player_1_message = turn[1]['action']['content']
@@ -223,9 +226,6 @@ class Cloudgame(DialogueGameMaster):
             self.log_episode_score(METRIC_SUCCESS, 1 if score else 0)
             self.log_episode_score(METRIC_LOSE, 0 if score else 1)
             self.log_episode_score(BENCH_SCORE, 100)
-        
-
-
 
 class CloudgameBenchmark(GameBenchmark):
     """Integrate the game into the benchmark run."""
@@ -246,3 +246,6 @@ class CloudgameBenchmark(GameBenchmark):
                            player_backends: List[str]
                            ) -> GameMaster:
         return Cloudgame(experiment, player_backends)
+    
+    def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
+        return CloudgameScorer(experiment, game_instance)
