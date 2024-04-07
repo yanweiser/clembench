@@ -46,8 +46,8 @@ class Judge(Player):
 class Cloudgame(DialogueGameMaster):
     """Implement mechanisms for playing Cloudgame."""
 
-    def __init__(self, experiment: Dict, player_backends: List[Model]):
-        super().__init__(GAME_NAME, experiment, player_backends)
+    def __init__(self, experiment: Dict, player_models: List[Model]):
+        super().__init__(GAME_NAME, experiment, player_models)
         # fetch experiment parameters here
         self.max_words = 2
         self.turns = []
@@ -56,8 +56,8 @@ class Cloudgame(DialogueGameMaster):
         self.aborted: bool = False
 
         self.experiment = experiment['name']
-        #self.model_a = player_backends[0]
-        #self.model_b = player_backends[1]
+        self.model_a = player_models[0]
+        #elf.model_b = player_backends[1]
        
 
     def _on_setup(self, **game_instance):
@@ -66,10 +66,10 @@ class Cloudgame(DialogueGameMaster):
         
         self.game_instance = game_instance
         self.image = game_instance["image"]
-        self.prompt = game_instance["prompt"]
+        self.initial_prompt = game_instance["prompt"]
 
-        self.speaker = Speaker(self.player_backends[0])
-        self.judge = Judge(self.experiment) # Argument hier ist relativ arbiträr
+        self.speaker = Speaker(self.model_a)
+        self.judge = Judge()
 
         self.add_player(self.speaker)
         self.add_player(self.judge)
@@ -89,7 +89,7 @@ class Cloudgame(DialogueGameMaster):
     def _on_before_turn(self, turn_idx: int):
         
         if turn_idx == 0:
-            self.add_user_message(self.speaker, self.prompt, image = self.image)
+            self.add_user_message(self.speaker, self.initial_prompt, image = self.image)
             self.add_user_message(self.judge, "Do you think this is correct?")
         if turn_idx == 1:
             self.add_user_message(self.speaker, "Are there any chickens in the picture?")
@@ -106,7 +106,7 @@ class Cloudgame(DialogueGameMaster):
         
         if player == self.speaker:
             true_answer = self.experiment
-            split_answer = answer.strip(".").split(" ")
+            split_answer = answer.strip(" .").split(" ")
             # only one word allowed
             if len(split_answer) != 1:
                 self.success = False
@@ -120,7 +120,7 @@ class Cloudgame(DialogueGameMaster):
             #     self.log_to_self("Invalid format", "Game aborted.")
             #     return False
             # only yes or no allowed
-            if answer.lower().strip(".") not in self.allowed_words:
+            if answer.lower().strip(" .") not in self.allowed_words:
                 self.success = False
                 self.aborted = True
                 self.log_to_self("Invalid words", "Game aborted.")
@@ -173,7 +173,6 @@ class CloudgameScorer(GameScorer):
  
      def __init__(self, experiment: Dict, game_instance: Dict):
          super().__init__(GAME_NAME, experiment, game_instance)
-         self.target_grid = game_instance["target_grid"] # necessary info to score the episode
 
      def compute_scores(self, episode_interactions: Dict) -> None:
          
@@ -243,9 +242,9 @@ class CloudgameBenchmark(GameBenchmark):
     # copy this, replacing the name of the game master in the return statement
     def create_game_master(self,
                            experiment: Dict,
-                           player_backends: List[str]
+                           player_models: List[Model]
                            ) -> GameMaster:
-        return Cloudgame(experiment, player_backends)
+        return Cloudgame(experiment, player_models)
     
     def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
         return CloudgameScorer(experiment, game_instance)
