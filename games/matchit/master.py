@@ -16,7 +16,7 @@ from clemgame import metrics as ms
 from clemgame import get_logger
 from clemgame.clemgame import Player
 from games.matchit.instancegenerator import GAME_NAME
-#from backends import Model
+from backends import Model
 
 from typing import List, Dict, Tuple
 
@@ -27,12 +27,12 @@ logger = get_logger(__name__)
 
 
 class MatchItPlayer(Player):
-    # def __init__(self, backend: Model):
-    #     super().__init__(backend)
+    def __init__(self, backend: Model):
+        super().__init__(backend)
 
 
-    def __init__(self, model_name, role):
-        super().__init__(model_name)
+    def __init__(self, backend: Model, role):
+        super().__init__(backend)
         self.role = role
 
         self.description = ""
@@ -61,8 +61,8 @@ class MatchItPlayer(Player):
 
 
 class MatchIt(DialogueGameMaster):
-    def __init__(self, experiment: Dict, player_backends: List[str]):
-    #def __init__(self, experiment: Dict, player_backends: List[Model]):
+    #def __init__(self, experiment: Dict, player_backends: List[str]):
+    def __init__(self, experiment: Dict, player_backends: List[Model]):
         super().__init__(GAME_NAME, experiment, player_backends)
 
         self.experiment: str = experiment["name"]
@@ -70,9 +70,7 @@ class MatchIt(DialogueGameMaster):
         
         self.prompt_a: str = experiment["prompt_a"] # "This is Prompt A."
         self.prompt_b: str = experiment["prompt_b"] # "This is Prompt B. Input from A: $DESCRIPTION_A$"
-
         self.q_reprompt = experiment["q_reprompt"] # "Reprompt: Now ask a question, starting with \"QUESTION: \""
-
         self.d_reprompt = experiment["d_reprompt"] # "Make a decision." 
 
         self.solution: str = experiment["solution"]
@@ -81,11 +79,8 @@ class MatchIt(DialogueGameMaster):
         self.success_b: bool = True
         self.aborted: bool = False
 
-        
-
     def _on_setup(self, **game_instance):
         self.game_instance = game_instance
-
         self.image_a = game_instance["image_a"]
         self.image_b = game_instance["image_b"]
 
