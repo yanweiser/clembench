@@ -86,10 +86,10 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
         }
         experiments = {
             # 'random_small': {"size": "small", "images": True, "reprompt": False},
-            'random_medium': {"size": "medium", "images": True, "reprompt": False},
+#             'random_medium': {"size": "medium", "images": True, "reprompt": False},
             # 'random_large': {"size": "large", "images": True, "reprompt": False},
             # 'random_small_reprompt': {"size": "small", "images": True, "reprompt": True},
-            'random_medium_reprompt': {"size": "medium", "images": True, "reprompt": True},
+#             'random_medium_reprompt': {"size": "medium", "images": True, "reprompt": True},
             # 'random_large_reprompt': {"size": "large", "images": True, "reprompt": True},
             # 'random_small_no_img': {"size": "small", "images": False, "reprompt": False},
             'random_medium_no_img': {"size": "medium", "images": False, "reprompt": False},

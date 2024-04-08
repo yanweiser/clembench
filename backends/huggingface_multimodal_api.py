@@ -160,6 +160,9 @@ class HuggingfaceMultimodalModel(backends.Model):
         template_str = self.template
         template = Template(template_str)
         prompt_text = template.render(messages=cleaned_messages)
+        
+        # Replace image placeholder with the correct one for the model
+        prompt_text = prompt_text.replace('<image>', self.image_placeholder)
 
         # Get a list of images that will be passed to the Processor
         images = get_images(prompt_text, messages, self.image_placeholder)
@@ -168,7 +171,11 @@ class HuggingfaceMultimodalModel(backends.Model):
         prompt = {"inputs": prompt_text, "max_new_tokens": self.get_max_tokens(), "temprature": self.get_temperature()}
         
         # Generate the output
-        inputs = self.processor(prompt_text, images=images, padding=True, return_tensors="pt").to("cuda")
+        if not images:
+            inputs = self.processor(prompt_text, images=[Image.new("RGB", (300,300))], padding=True, return_tensors="pt").to("cuda")
+            inputs["pixel_values"] = None
+        else:
+            inputs = self.processor(prompt_text, images=images, padding=True, return_tensors="pt").to("cuda")
         model_output = self.multimodal_model.generate(**inputs, max_new_tokens=self.get_max_tokens())
         generated_text = self.processor.batch_decode(model_output, skip_special_tokens=True)
 

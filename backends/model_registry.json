@@ -427,7 +427,7 @@
     "placeholder": "<image>",
     "assistant": "ASSISTANT",
     "premade_chat_template": false,
-    "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %} \nUSER: <image>\n{{ message['content'] }}{% else %} ASSISTANT: {{ message['content'] }}{% endif %}{% endfor %} ASSISTANT: "
+    "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER:\n{{ message['content'] }}\n{% else %} ASSISTANT:\n{{ message['content'] }}\n{% endif %}{% endfor %}ASSISTANT:\n"
    },
    {
      "model_name": "llava-1.5-13b-hf",
@@ -436,7 +436,7 @@
      "placeholder": "<image>",
      "assistant": "ASSISTANT",
      "premade_chat_template": false,
-     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %} \nUSER: <image>\n{{ message['content'] }}{% else %} ASSISTANT: {{ message['content'] }}{% endif %}{% endfor %} ASSISTANT: "
+     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER:\n{{ message['content'] }}\n{% else %} ASSISTANT:\n{{ message['content'] }}\n{% endif %}{% endfor %}ASSISTANT:\n"
    },
    {
      "model_name": "llava-v1.6-mistral-7b-hf",
@@ -445,7 +445,7 @@
      "placeholder": "<image>",
      "assistant": "ASSISTANT",
      "premade_chat_template": false,
-     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %} \nUSER: <image>\n{{ message['content'] }}{% else %} ASSISTANT: {{ message['content'] }}{% endif %}{% endfor %} ASSISTANT: "
+     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER:\n{{ message['content'] }}\n{% else %} ASSISTANT:\n{{ message['content'] }}\n{% endif %}{% endfor %}ASSISTANT:\n"
    },
    {
      "model_name": "blip2-opt-2.7b",
@@ -463,7 +463,7 @@
      "placeholder": "<image>",
      "assistant": "ASSISTANT",
      "premade_chat_template": false,
-     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %} \nUSER: <image>\n{{ message['content'] }}{% else %} ASSISTANT: {{ message['content'] }}{% endif %}{% endfor %} ASSISTANT: "
+     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER:\n{{ message['content'] }}\n{% else %} ASSISTANT:\n{{ message['content'] }}\n{% endif %}{% endfor %}ASSISTANT:\n"
     },
     {
      "model_name": "kosmos-2-patch14-224",

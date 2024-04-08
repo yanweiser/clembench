@@ -20,7 +20,7 @@ from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC
         BENCH_SCORE
 
 
-
+DIRS = ["north", "south", "east", "west"]
 GAME_NAME = 'mm_mapworld'
 MAX_TURNS = 15
 
@@ -44,7 +44,7 @@ class PathWalker(Player):
 
     def _custom_response(self, messages, turn_idx) -> str:
         """Return a random direction."""
-        random_dir = random.choice(["north", "south", "east", "west"])
+        random_dir = random.choice(DIRS)
         return f'GO: {random_dir}'
     
 
@@ -152,7 +152,7 @@ class MmMapWorld(DialogueGameMaster):
 
     def _on_before_game(self):
         start_directions = self.describer.get_available_directions(self.describer.start)
-        prompt = self.describer.init_prompt.replace('$INITIAL_DIRECTIONS$', ', '.join(start_directions))
+        prompt = self.init_prompt.replace('$INITIAL_DIRECTIONS$', ', '.join(start_directions))
         # add initial prompt to dialogue
         if self.use_images:
             initial_image = self.describer.imgs[self.start]
@@ -182,9 +182,8 @@ class MmMapWorld(DialogueGameMaster):
         """
         if player == self.walker:
             utterance = utterance.replace("\n", "").strip()
-            utterance = utterance.lower()
-            for word in [self.done_const, self.move_const]:
-                utterance = utterance.replace(word, word.upper())
+            for word in DIRS:
+                utterance = utterance.replace(word.capitalize(), word)
             done_hit = re.search(self.done_regex, utterance)
             if done_hit:
                 utterance = done_hit.group()
@@ -196,9 +195,8 @@ class MmMapWorld(DialogueGameMaster):
     def _validate_player_response(self, player: Player, answer: str) -> bool:
         """Check if the utterance conforms to rules (cloudgame specific)."""
         answer = answer.replace("\n", "").strip()
-        answer = answer.lower()
-        for word in [self.done_const, self.move_const]:
-            answer = answer.replace(word, word.upper())
+        for word in DIRS:
+            answer = answer.replace(word.capitalize(), word)
         if player == self.walker:
             # in case we abort we set the next move to None
             self.move = None
@@ -245,11 +243,12 @@ class MmMapWorld(DialogueGameMaster):
     def _on_before_reprompt(self, player: Player):
         avail = self.get_available_directions(self.current_room)
         reprompt = self.reprompt_format
-        reprompt.replace("$DIRECTIONS$", ', '.join(avail))
+        reprompt = reprompt.replace("$DIRECTIONS$", ', '.join(avail))
         if self.use_images:
             self.add_user_message(self.walker, reprompt, self.imgs[self.current_room])
         else:
             self.add_user_message(self.walker, reprompt)
+        self.did_reprompt = True
         
     def _on_after_turn(self, turn_idx: int):
         if self.aborted:
