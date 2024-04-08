@@ -59,10 +59,20 @@ class PathDescriber(Player):
         self.current_room = instance_data["start"]
         self.success_response = game_instance["success_response"]
         self.invalid_response = game_instance["invalid_response"]
+        self.loop_response = game_instance["loop_warning"]
+        self.limit_warning = game_instance["limit_warning"]
         self.visited_nodes=[self.current_room]
+        self.use_loop_warning = game_instance["use_loop_warning"]
+        self.use_turn_limit_warning = game_instance["use_turn_limit_warning"]
         
     def get_available_moves(self, node):
         return [edge for edge in self.edges if node == edge[0]]
+    
+    def detect_loop(self):
+        if len(self.visited_nodes) >= 4:
+            if len(set(self.visited_nodes[-4:])) < 3:
+                return True
+        return False
     
     def get_available_directions(self, node):
         moves = self.get_available_moves(node)
@@ -89,6 +99,10 @@ class PathDescriber(Player):
             response = self.invalid_response.replace("$DIRECTIONS$", ", ".join(available_directions))
         else:
             response = self.success_response.replace("$DIRECTIONS$", ", ".join(available_directions))
+        if self.detect_loop() and self.use_loop_warning:
+            response = self.loop_response + response
+        if turn_idx == (MAX_TURNS - 1) and self.use_turn_limit_warning:
+            response = self.limit_warning + response
         return response
 
         
@@ -119,7 +133,7 @@ class MmMapWorld(DialogueGameMaster):
         new_room = (self.current_room[0] + delta[0], self.current_room[1] + delta[1])
         if (self.current_room, new_room) in self.edges:
             self.current_room = new_room
-           
+                       
     def _on_setup(self, **game_instance):
         """" sets the information you specify in instances.json """
         self.game_instance = game_instance
