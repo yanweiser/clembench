@@ -53,7 +53,7 @@ class MatchItPlayer(Player):
             return f"QUESTION: from Player {self.role}"
         elif "QUESTION" in last_message:
             logger.info("Repromt happend here")
-            return f"ANSER: from Player {self.role}"
+            return f"ANSWER: from Player {self.role}"
         elif "decision" in last_message:
             return "DECISION: Different image."
         else: 
@@ -78,6 +78,9 @@ class MatchIt(DialogueGameMaster):
         self.success_a: bool = True
         self.success_b: bool = True
         self.aborted: bool = False
+            
+        self.model_a = player_backends[0]
+        self.model_b = player_backends[1]
 
     def _on_setup(self, **game_instance):
         self.game_instance = game_instance
@@ -86,8 +89,8 @@ class MatchIt(DialogueGameMaster):
 
         self.decision_turn = game_instance["decision_turn"]
 
-        self.player_a = MatchItPlayer(self.player_backends[0], "A")
-        self.player_b = MatchItPlayer(self.player_backends[1], "B")
+        self.player_a = MatchItPlayer(self.model_a, "A")
+        self.player_b = MatchItPlayer(self.model_b, "B")
 
         self.add_player(self.player_a)
         self.add_player(self.player_b)
@@ -124,14 +127,15 @@ class MatchIt(DialogueGameMaster):
             self.log_to_self("valid format", "continue")
             return True
         else: 
-            self.log_to_self("invalid format", "abort")
+            self.log_to_self("invalid format", f"abort, first word: {first_word}")
             self.aborted = True
             return False
 
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
-        utt_parts = list(filter(None, utterance.split("\n"))) #filter to be sure that there are no empty strings
+        utt_parts = list(filter(None, utterance.strip().split("\n"))) #filter to be sure that there are no empty strings
         first_word = utt_parts[0].split(" ")[0]
         logger.info("first word = " + first_word)
+        logger.info("utterance = " + utterance)
         # first turn
         if self.n_turns == 0:
             if self.answer_counter == 1: # should work because answer_counter gets updated after validation
@@ -144,7 +148,7 @@ class MatchIt(DialogueGameMaster):
                 return self.check_flag(first_word, self.flags["answer"])
             else: 
                 if self.check_flag(first_word, self.flags["decision"]):
-                    if utterance.lower().strip(".") == (self.flag["decision"] + " " + self.solution).lower():
+                    if utterance.lower().strip(".") == (self.flags["decision"] + " " + self.solution).lower():
                         player.success = True
                         self.log_to_self(f"Decision Player {player.role}", "success")
                     else:
@@ -208,6 +212,7 @@ class MatchIt(DialogueGameMaster):
 
     def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
         #print(utterance)
+        utterance = utterance.strip()
         if utterance.startswith("DESCRIPTION:"):
             player.description = utterance
         elif utterance.startswith("QUESTION:"):
@@ -221,8 +226,8 @@ class MatchIt(DialogueGameMaster):
         logger.info("And helpful counter is " + str(self.answer_counter))
 
 
-        utterance = utterance.split("\n") # remove anything that might not belong to the flag
-        return utterance[0], True
+        #utterance = utterance.split("\n") # remove anything that might not belong to the flag
+        return utterance, True
 
     def _after_add_player_response(self, player: Player, utterance: str):
         # if player == self.player_a:
@@ -238,16 +243,25 @@ class MatchIt(DialogueGameMaster):
             
         #     self.add_user_message(self.player_a, utterance)
 
+        
+ 
         # erste Runde: 
             # wenn player A, dann utt_filled an player  
+        logger.info(f"Das war die utt: {utterance}_")
         if self.n_turns == 0:
+            logger.info("Wir sind immer noch im ersten turn")
             if player == self.player_a:
+                logger.info("Player_B wird gepromptet")
                 utt_filled = self.prompt_b.replace("$DESCRIPTION_A$", utterance)
                 self.add_user_message(self.player_b, utt_filled, image = self.image_b)
             elif player == self.player_b:
+                logger.info("player_A sollte was bekommen")
                 if self.player_b.description != "" and self.player_b.question != "":
-                    self.add_user_message(self.player_a, self.player_b.description + "\n" + self.player_b.question)
+                    logger.info("und es wird appended, also wenn das steht, ist ech echt weird")
+                    self.add_user_message(self.player_a, self.player_b.description + "\n" + self.player_b.question + "Start your answer with ANSWER:")
                     self.player_b.question = ""
+                else:
+                    logger.info(f"DESC = {self.player_b.description}; QUES = {self.player_b.question}")
 
         # normaler Zustand:
         #  wenn answer_counter == 0, dann ist nix
@@ -261,7 +275,7 @@ class MatchIt(DialogueGameMaster):
             other_player = self.player_a if player == self.player_b else self.player_b
             if player.answer != "" and player.question != "":
                 self.log_to_self("note", "a+q -> A:" + player.answer + " ,Q:" + player.question + " ,D:" + player.decision )
-                self.add_user_message(other_player, player.answer + "\n" + player.question)
+                self.add_user_message(other_player, player.answer + "\n" + player.question + "Start your answer with ANSWER:")
                 player.description = ""
                 player.question = ""
                 player.answer = ""
