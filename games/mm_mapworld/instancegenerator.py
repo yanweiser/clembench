@@ -64,7 +64,6 @@ def instance_from_args(args, prompts):
             instances[i]['use_images'] = False
         if args['reprompt']:
             instances[i]['reprompt'] = True
-        instances[i]["reprompt_loop"] = prompts["reprompt_loop"]
         instances[i]["reprompt_format"] = prompts["reprompt_format"]
         instances[i]["limit_warning"] = prompts["limit_warning"]
         instances[i]["loop_warning"] = prompts["loop_warning"]
@@ -85,23 +84,22 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
             'later_invalid': self.load_template('resources/later_prompts/invalid_move.template'),
             'later_success_no_img': self.load_template('resources/later_prompts/successful_move_no_img.template'),
             'later_invalid_no_img': self.load_template('resources/later_prompts/invalid_move_no_img.template'),
-            'reprompt_loop': self.load_template('resources/reprompts/loop.template'),
             'reprompt_format': self.load_template('resources/reprompts/invalid_format.template'),
             'limit_warning': self.load_template('resources/later_prompts/turn_limit.template'),
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
         }
         experiments = {
             # 'random_small': {"size": "small", "images": True, "reprompt": False},
-            # 'random_medium': {"size": "medium", "images": True, "reprompt": False},
+#             'random_medium': {"size": "medium", "images": True, "reprompt": False},
             # 'random_large': {"size": "large", "images": True, "reprompt": False},
             # 'random_small_reprompt': {"size": "small", "images": True, "reprompt": True},
-            # 'random_medium_reprompt': {"size": "medium", "images": True, "reprompt": True},
+            'random_medium_reprompt': {"size": "medium", "images": True, "reprompt": True},
             # 'random_large_reprompt': {"size": "large", "images": True, "reprompt": True},
             # 'random_small_no_img': {"size": "small", "images": False, "reprompt": False},
-            'random_medium_no_img': {"size": "medium", "images": False, "reprompt": False},
+#             'random_medium_no_img': {"size": "medium", "images": False, "reprompt": False},
             # 'random_large_no_img': {"size": "large", "images": False, "reprompt": False},
             # 'random_small_no_img_reprompt': {"size": "small", "images": False, "reprompt": True},
-            'random_medium_no_img_reprompt': {"size": "medium", "images": False, "reprompt": True},
+#             'random_medium_no_img_reprompt': {"size": "medium", "images": False, "reprompt": True},
             # 'random_large_no_img_reprompt': {"size": "large", "images": False, "reprompt": True}
         }
 

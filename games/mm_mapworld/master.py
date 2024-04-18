@@ -156,7 +156,6 @@ class MmMapWorld(DialogueGameMaster):
         self.use_images = game_instance["use_images"]
         
         self.do_reprompt = game_instance["reprompt"]
-        self.reprompt_loop = game_instance["reprompt_loop"]
         self.reprompt_format = game_instance["reprompt_format"]
 
         self.describer = PathDescriber(CustomResponseModel(), game_instance)
@@ -178,6 +177,7 @@ class MmMapWorld(DialogueGameMaster):
         if not self.aborted and not self.stop and self.current_turn < MAX_TURNS:
             return True
         if self.current_turn >= MAX_TURNS:
+            self.aborted = True
             self.log_to_self(type_ = "aborted", value = self.aborted)
             self.log_to_self("turn limit reached", True)
         return False
@@ -347,7 +347,65 @@ class MM_MapWorldScorer(GameScorer):
                         new.append(move[1])
                         q.put(new)
         return found
-        
+    
+    #BETA
+    def plot_path(self):
+        import matplotlib.pyplot as plt
+
+        # Nodes and edges of the graph
+        nodes = [(1, 1), (1, 2), (1, 3), (2, 1)]
+        edges = [{(1, 1), (1, 2)}, {(1, 1), (2, 1)}, {(1, 2), (1, 3)}]
+
+        # Path to be highlighted
+        path = [(1, 1), (2, 1), (1, 1), (1, 2), (1, 3)]
+
+        # Define a small offset for edge lines
+        offset = 0.03
+
+        # Create the plot
+        plt.figure(figsize=(4, 4))
+
+        # Plot nodes
+        plt.plot([node[0] for node in nodes], [node[1] for node in nodes], 'o', color='gray', linewidth = 20, markersize = 25)
+
+        # Counter to track how many times an edge has been plotted
+        traveled = {}
+
+        # Plot edges with offset
+        for edge in edges:
+            x1, y1 = edge.pop()  # Get coordinates of one endpoint
+            x2, y2 = edge.pop()  # Get coordinates of the other endpoint  
+            plt.plot([x1, x2], [y1, y2], color='gray', linestyle='--')
+            traveled[((x1, y1), (x2, y2))] = 0
+
+        print(traveled.keys())
+        # Highlight the path
+        last = path[0]
+        for i in range(1, len(path)):
+            x1, y1 = last
+            x2, y2 = path[i]
+            dx = x2 - x1
+            dy = y2 - y1
+            if (path[i - 1], path[i]) in traveled:
+                t = traveled[(path[i - 1], path[i])]
+                traveled[(path[i - 1], path[i])] += 1
+            else:
+                t = traveled[(path[i], path[i - 1])]
+                traveled[(path[i], path[i - 1])] += 1
+            plt.arrow(x1, y1, dx + t * offset, dy + t * offset, color='red', width = 0.005, head_width = 0.05, length_includes_head = True, zorder = 10)
+            last = (
+                x1 + dx + t * offset,
+                y1 + dy + t * offset
+            )
+
+        # Customize the plot
+        plt.axis('equal')
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        plt.title('Undirected Graph with Path')
+        plt.grid(True)
+
+
     def compute_scores(self, episode_interactions) -> None:
         current = self.start_node
         seen = {self.start_node}

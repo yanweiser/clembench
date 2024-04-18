@@ -55,7 +55,7 @@ class OpenAIModel(backends.Model):
                     "content": [
                         {
                             "type": "text",
-                            "text": message["content"]
+                            "text": message["content"].replace(" <image> ", " ")
                         }
                 ]}
             if "image" in message.keys():
