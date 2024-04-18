@@ -448,6 +448,15 @@
      "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER:\n{{ message['content'] }}\n{% else %} ASSISTANT:\n{{ message['content'] }}\n{% endif %}{% endfor %}ASSISTANT:\n"
    },
    {
+     "model_name": "llava-v1.6-34b-hf",
+     "backend": "huggingface_multimodal",
+     "huggingface_id": "llava-hf/llava-v1.6-34b-hf",
+     "placeholder": "<image>",
+     "assistant": "ASSISTANT",
+     "premade_chat_template": false,
+     "custom_chat_template": "<|im_start|>system\nAnswer the questions.<|im_end|>{%- for message in messages -%}{% if message['role'] == 'user' %}<|im_start|>user\n{{ message['content'] }}<|im_end|>{% else %}<|im_start|>assistant\n{{ message['content'] }}<|im_end|>{% endif %}{% endfor %}<|im_start|>assistant\n"
+   },
+   {
      "model_name": "blip2-opt-2.7b",
      "backend": "huggingface_multimodal",
      "huggingface_id": "Salesforce/blip2-opt-2.7b",
