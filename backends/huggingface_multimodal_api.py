@@ -6,7 +6,7 @@ import torch
 import backends
 from PIL import Image
 import requests
-from transformers import AutoProcessor, AutoModelForVision2Seq
+from transformers import AutoProcessor, AutoModelForVision2Seq, LlavaNextForConditionalGeneration
 from jinja2 import Template
 
 logger = backends.get_logger(__name__)
@@ -23,7 +23,11 @@ def load_processor(model_spec: backends.ModelSpec) -> AutoProcessor:
 
     # Load the processor 
     # NOTE - Further models may contain Tokenizer instead of Processor
-    processor = AutoProcessor.from_pretrained(hf_model_str, device_map="auto", verbose=False)
+    
+    if hf_model_str in ["llava-hf/llava-v1.6-34b-hf"]:
+        LlavaNextForConditionalGeneration.from_pretrained("llava-hf/llava-v1.6-34b-hf", device_map="auto", verbose=False) 
+    else:
+        processor = AutoProcessor.from_pretrained(hf_model_str, device_map="auto", verbose=False)
 
     return processor
 
