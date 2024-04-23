@@ -1,11 +1,14 @@
 import random
 from typing import List, Dict, Tuple
 import re
+import os
 import json
 from queue import Queue
 from copy import deepcopy
 from time import sleep
 import numpy as np
+import matplotlib.pyplot as plt
+import imageio
 
 import games.mm_mapworld.utils as utils
 
@@ -349,50 +352,36 @@ class MM_MapWorldScorer(GameScorer):
         return found
     
     #BETA
-    def plot_path(self):
-        import matplotlib.pyplot as plt
-
-        # Nodes and edges of the graph
-        nodes = [(1, 1), (1, 2), (1, 3), (2, 1)]
-        edges = [{(1, 1), (1, 2)}, {(1, 1), (2, 1)}, {(1, 2), (1, 3)}]
-
-        # Path to be highlighted
-        path = [(1, 1), (2, 1), (1, 1), (1, 2), (1, 3)]
-
-        # Define a small offset for edge lines
+    def plot_path(self, path):
         offset = 0.03
-
-        # Create the plot
-        plt.figure(figsize=(4, 4))
-
-        # Plot nodes
-        plt.plot([node[0] for node in nodes], [node[1] for node in nodes], 'o', color='gray', linewidth = 20, markersize = 25)
-
-        # Counter to track how many times an edge has been plotted
+        fig = plt.figure(figsize=(4, 4))
+        plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='gray', linewidth = 20, markersize = 25)
         traveled = {}
 
-        # Plot edges with offset
-        for edge in edges:
+        for edge in self.edges:
             x1, y1 = edge.pop()  # Get coordinates of one endpoint
             x2, y2 = edge.pop()  # Get coordinates of the other endpoint  
             plt.plot([x1, x2], [y1, y2], color='gray', linestyle='--')
             traveled[((x1, y1), (x2, y2))] = 0
 
-        print(traveled.keys())
-        # Highlight the path
         last = path[0]
         for i in range(1, len(path)):
             x1, y1 = last
             x2, y2 = path[i]
             dx = x2 - x1
             dy = y2 - y1
-            if (path[i - 1], path[i]) in traveled:
-                t = traveled[(path[i - 1], path[i])]
-                traveled[(path[i - 1], path[i])] += 1
-            else:
-                t = traveled[(path[i], path[i - 1])]
-                traveled[(path[i], path[i - 1])] += 1
-            plt.arrow(x1, y1, dx + t * offset, dy + t * offset, color='red', width = 0.005, head_width = 0.05, length_includes_head = True, zorder = 10)
+            t = traveled[(path[i], path[i - 1])]
+            traveled[(path[i], path[i - 1])] += 1
+            traveled[(path[i - 1], path[i])] += 1
+            plt.arrow(x1, 
+                      y1, 
+                      dx + t * offset, 
+                      dy + t * offset, 
+                      color='red', 
+                      width = 0.005, 
+                      head_width = 0.05, 
+                      length_includes_head = True, 
+                      zorder = 10)
             last = (
                 x1 + dx + t * offset,
                 y1 + dy + t * offset
@@ -402,8 +391,8 @@ class MM_MapWorldScorer(GameScorer):
         plt.axis('equal')
         plt.xlabel('X')
         plt.ylabel('Y')
-        plt.title('Undirected Graph with Path')
         plt.grid(True)
+        return fig
 
 
     def compute_scores(self, episode_interactions) -> None:
@@ -411,6 +400,7 @@ class MM_MapWorldScorer(GameScorer):
         seen = {self.start_node}
         seen.update(self.adj(self.start_node))
         visited = {self.start_node}
+        self.path = [self.start_node]
         valid_moves = 0
         invalid_moves = 0
         aborted = False
@@ -445,9 +435,10 @@ class MM_MapWorldScorer(GameScorer):
                     current = new
                     seen.update(self.adj(current))
                     visited.add(current)
+                    self.path.append(current)
                 
-                        
-        if aborted:
+        # log all the scores
+        if aborted: # set all values to NaN if game is aborted
             for i, val in enumerate(good_move):
                 self.log_turn_score(i, "effiencient_move", np.NaN)
             self.log_episode_score(METRIC_ABORTED, 1)
@@ -461,7 +452,7 @@ class MM_MapWorldScorer(GameScorer):
             self.log_episode_score('effieciency', np.NaN)
             self.log_episode_score('exploration', np.NaN)
             self.log_episode_score(BENCH_SCORE, np.NaN)
-        else:
+        else: # else set them to their respective values
             self.log_episode_score(METRIC_ABORTED, 0)
             if self.visited_all(visited, self.nodes):
                 self.log_episode_score(METRIC_SUCCESS, 1)
@@ -479,6 +470,29 @@ class MM_MapWorldScorer(GameScorer):
             exp = 100*len(visited)/len(self.nodes)
             self.log_episode_score('exploration', exp)
             self.log_episode_score(BENCH_SCORE, (2*exp*eff)/(eff+exp))
+            
+        
+
+        
+    def store_scores(self, results_root: str, dialogue_pair: str, game_record_dir: str):
+        self.store_results_file(self.scores, "scores.json",
+                                dialogue_pair=dialogue_pair,
+                                sub_dir=game_record_dir,
+                                root_dir=results_root)
+        
+        # plotting & animation
+        if not os.path.exists("tmp"):
+            os.makedirs("tmp")
+        path_plot = self.plot_path(self.path)
+        path_plot.savefig(os.path.join(results_root, dialogue_pair, game_record_dir, "path.png"))
+        if not os.path.exists("tmp/step_plots"):
+            os.makedirs("tmp/step_plots")
+        images = []
+        for i in range(len(self.path)):
+            step_plot = self.plot_path(self.path[:i])
+            step_plot.savefig(f"tmp/step_plots/{i}.png")
+            images.append(imageio.imread(f"tmp/step_plots/{i}.png"))
+        imageio.mimsave(os.path.join(results_root, dialogue_pair, game_record_dir, "animation.gif"), images)
         
         
                 
