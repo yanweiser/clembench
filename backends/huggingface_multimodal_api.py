@@ -44,7 +44,9 @@ def load_model(model_spec: backends.ModelSpec) -> AutoModelForVision2Seq:
     hf_model_str = model_spec['huggingface_id'] # Get the model name
 
     if hf_model_str in ["llava-hf/llava-v1.6-34b-hf"]:
-        model = LlavaNextForConditionalGeneration.from_pretrained(hf_model_str, device_map="auto", torch_dtype="auto")
+        model = LlavaNextForConditionalGeneration.from_pretrained(hf_model_str, 
+                                                                  device_map="auto", 
+                                                                  torch_dtype="auto")
     else:
         model = AutoModelForVision2Seq.from_pretrained(hf_model_str, device_map="auto", torch_dtype="auto")
     logger.info(f"Finished loading huggingface model: {model_spec.model_name}")
@@ -140,6 +142,7 @@ class HuggingfaceMultimodalModel(backends.Model):
         self.template = model_spec["custom_chat_template"]
         self.assistant_tag = model_spec["assistant"]
         self.image_placeholder = model_spec["placeholder"]
+        self.hf_model_str = model_spec['huggingface_id']
 
     def generate_response(self, messages: List[Dict],
                           log_messages: bool = False) -> Tuple[Any, Any, str]:
@@ -189,7 +192,11 @@ class HuggingfaceMultimodalModel(backends.Model):
         # Store generated text
         response = {'response': generated_text}
 
-        for text in generated_text:
-            response_text = text.split(self.assistant_tag + ":")[-1] # Get the last assistant response
+        if self.hf_model_str in ["llava-hf/llava-v1.6-34b-hf"]:
+            for text in generated_text:
+                response_text = text.split(self.assistant_tag)[-1] # Get the last assistant response
+        else:
+            for text in generated_text:
+                response_text = text.split(self.assistant_tag + ":")[-1] # Get the last assistant response
 
         return prompt, response, response_text

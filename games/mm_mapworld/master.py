@@ -9,6 +9,7 @@ from time import sleep
 import numpy as np
 import matplotlib.pyplot as plt
 import imageio
+import shutil
 
 import games.mm_mapworld.utils as utils
 
@@ -104,7 +105,7 @@ class PathDescriber(Player):
             response = self.success_response.replace("$DIRECTIONS$", ", ".join(available_directions))
         if self.detect_loop() and self.use_loop_warning:
             response = self.loop_response + response
-        if turn_idx == (MAX_TURNS - 1) and self.use_turn_limit_warning:
+        if turn_idx == (MAX_TURNS - 2) and self.use_turn_limit_warning:
             response = self.limit_warning + response
         return response
 
@@ -359,8 +360,8 @@ class MM_MapWorldScorer(GameScorer):
         traveled = {}
 
         for edge in self.edges:
-            x1, y1 = edge.pop()  # Get coordinates of one endpoint
-            x2, y2 = edge.pop()  # Get coordinates of the other endpoint  
+            x1, y1 = edge[0]  # Get coordinates of one endpoint
+            x2, y2 = edge[1]  # Get coordinates of the other endpoint  
             plt.plot([x1, x2], [y1, y2], color='gray', linestyle='--')
             traveled[((x1, y1), (x2, y2))] = 0
 
@@ -465,7 +466,7 @@ class MM_MapWorldScorer(GameScorer):
             self.log_episode_score('invalid_moves', invalid_moves)
             self.log_episode_score('visited', len(visited))
             self.log_episode_score('seen', len(seen))
-            eff = 100*sum(good_move)/len(good_move)
+            eff = 100*sum(good_move)/max([len(good_move), 1])
             self.log_episode_score('effieciency', eff)
             exp = 100*len(visited)/len(self.nodes)
             self.log_episode_score('exploration', exp)
@@ -484,15 +485,21 @@ class MM_MapWorldScorer(GameScorer):
         if not os.path.exists("tmp"):
             os.makedirs("tmp")
         path_plot = self.plot_path(self.path)
-        path_plot.savefig(os.path.join(results_root, dialogue_pair, game_record_dir, "path.png"))
+        path_plot.savefig(os.path.join(results_root, dialogue_pair, self.name, game_record_dir, "path.png"))
+        plt.close()
         if not os.path.exists("tmp/step_plots"):
             os.makedirs("tmp/step_plots")
         images = []
         for i in range(len(self.path)):
-            step_plot = self.plot_path(self.path[:i])
+            step_plot = self.plot_path(self.path[:i+1])
             step_plot.savefig(f"tmp/step_plots/{i}.png")
             images.append(imageio.imread(f"tmp/step_plots/{i}.png"))
-        imageio.mimsave(os.path.join(results_root, dialogue_pair, game_record_dir, "animation.gif"), images)
+            plt.close()
+        imageio.mimsave(os.path.join(results_root, dialogue_pair, self.name, game_record_dir, "animation.gif"), images, fps=1, loop=True)
+        try:
+            shutil.rmtree("tmp")
+        except OSError as e:
+            print("Error: %s - %s." % (e.filename, e.strerror))
         
         
                 
