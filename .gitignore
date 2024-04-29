@@ -5,6 +5,7 @@ results_eval
 /venv
 evaltmp.ipynb
 set_cache.sh
+.run
 
 # Wordlists https://www.kaggle.com/datasets/rtatman/english-word-frequency
 unigram_freq.csv
@@ -192,3 +193,4 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 /venv_hf/
+/venv_llamacpp/
