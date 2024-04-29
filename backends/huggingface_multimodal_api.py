@@ -6,8 +6,14 @@ import torch
 import backends
 from PIL import Image
 import requests
-from transformers import AutoProcessor, AutoModelForVision2Seq, LlavaNextForConditionalGeneration, LlavaNextProcessor
+from transformers import AutoProcessor, AutoModelForVision2Seq, IdeficsForVisionText2Text
 from jinja2 import Template
+
+# Define a map to load model from transformers Auto Classes
+MODEL_TYPE_MAP = {
+        "Idefics": IdeficsForVisionText2Text,
+        "Vision2Seq": AutoModelForVision2Seq
+    }
 
 logger = backends.get_logger(__name__)
 
@@ -20,19 +26,13 @@ def load_processor(model_spec: backends.ModelSpec) -> AutoProcessor:
     '''
     logger.info(f'Loading huggingface model Processor: {model_spec.model_name}')
     hf_model_str = model_spec['huggingface_id'] # Get the model name
-
-    # Load the processor 
-    # NOTE - Further models may contain Tokenizer instead of Processor
-    
-    if hf_model_str in ["llava-hf/llava-v1.6-34b-hf"]:
-        processor = LlavaNextProcessor.from_pretrained(hf_model_str, device_map="auto", verbose=False) 
-    else:
-        processor = AutoProcessor.from_pretrained(hf_model_str, device_map="auto", verbose=False)
+   
+    processor = AutoProcessor.from_pretrained(hf_model_str, use_fast=False, device_map="auto", verbose=False)
 
     return processor
 
 
-def load_model(model_spec: backends.ModelSpec) -> AutoModelForVision2Seq:
+def load_model(model_spec: backends.ModelSpec):
     '''
     Load a specific model 
 
@@ -43,85 +43,110 @@ def load_model(model_spec: backends.ModelSpec) -> AutoModelForVision2Seq:
     logger.info(f'Start loading huggingface model weights: {model_spec.model_name}')
     hf_model_str = model_spec['huggingface_id'] # Get the model name
 
-    if hf_model_str in ["llava-hf/llava-v1.6-34b-hf"]:
-        model = LlavaNextForConditionalGeneration.from_pretrained(hf_model_str, 
-                                                                  device_map="auto", 
-                                                                  torch_dtype="auto")
-    else:
-        model = AutoModelForVision2Seq.from_pretrained(hf_model_str, device_map="auto", torch_dtype="auto")
+    model_type = MODEL_TYPE_MAP[model_spec['model_type']] # Use the appropriate Auto class to  load the model 
+
+    model = model_type.from_pretrained(hf_model_str, device_map="auto", torch_dtype="auto") # Load the model
+
+    # check if model's generation_config has pad_token_id set:
+    if not model.generation_config.pad_token_id:
+        # set pad_token_id to tokenizer's eos_token_id to prevent excessive warnings:
+        model.generation_config.pad_token_id = model.generation_config.eos_token_id #Same as processor.tokenizer.pad_token_id
+    
     logger.info(f"Finished loading huggingface model: {model_spec.model_name}")
-    logger.info(f"Model device map: {model.hf_device_map}")
+    logger.info(f"Device Map: {model.hf_device_map}")
     
     return model
 
-def load_image(image_file: str) -> Image:
+def pad_images(images):
     '''
-    Load an image from a given link/directory
-
-    :param image_file: A string that defines the link/directory of the image 
-    :return image: Loaded image
+    Pad the images. Only used for LLaVA NeXT models
+    Will be deprecated when issue https://github.com/huggingface/transformers/issues/29832 is closed
     '''
-    if image_file.startswith('http') or image_file.startswith('https'):
-        image = Image.open(requests.get(image_file, stream=True).raw).convert('RGB')
-    else:
-        image = Image.open(image_file).convert('RGB')
-    return image
+    # Determine the maximum width and height among all images
+    max_width = max(image.size[0] for image in images)
+    max_height = max(image.size[1] for image in images)
 
-def clean_messages(current_messages: List[Dict]) -> List[Dict]:
-    '''
-    Flatten double user messages
+    # Create and return a list of padded images
+    padded_images = []
+    for image in images:
+        # Create a new image with a black background
+        new_image = Image.new("RGB", (max_width, max_height))
 
-    :param current_messages: A list of messages passed to the model
-    :return current_messages: Merged double user messages into one, keeping the 'image' key
+        # Calculate the position to paste the image so that it's centered
+        x = (max_width - image.size[0]) // 2
+        y = (max_height - image.size[1]) // 2
 
-    Example (Cloudgame)- 
-    {'role': 'user', 'content': 'This seems correct.'} 
-    {'role': 'user', 'content': 'Are there any chickens in the image? Answer with only "Yes" or "No".', 'image': 'games/cloudgame/resources/images/3.jpg'}
-    
-    {'role': 'user', 'content': 'This seems correct. Are there any chickens in the image? Answer with only "Yes" or "No".', 'image': 'games/cloudgame/resources/images/3.jpg'}
-    '''
+        # Paste the original image onto the new image
+        new_image.paste(image, (x, y))
+        padded_images.append(new_image)
 
-    for msg_idx, message in enumerate(current_messages):
-        if msg_idx < len(current_messages)-1 and message['role'] == "user" and current_messages[msg_idx+1]['role'] == "user":
-            # Merge into next message, ensuring 'image' key is not deleted
-            current_messages[msg_idx+1]['content'] = f"{message['content']} " + current_messages[msg_idx+1]['content']
-            del current_messages[msg_idx] 
+    return padded_images
 
-    return current_messages
-
-def get_images(prompt_text: str, messages: List[Dict], image_placeholder: str) -> List:
+def get_images(messages: list[Dict]) -> list:
     '''
     Return loaded images from messages
 
-    :param prompt_text: A string that goes into the input of the Processor
     :param messages: A list of messages passed to the model
-    :return images: A list of loaded images, that can be directly passed as input to the Processor.
-    '''
-
-    # Count number of image placeholders (<image>, <img>, ...) in the cleaned prompt
-    num_images = prompt_text.count(image_placeholder) 
-    
+    :return images: A list of PIL Image objects.
+    '''    
     # Collect image links/file locations mentioned in messages
-    imgs = []
-    for _, message in enumerate(messages):
+    images = []
+    for message in messages:
         if 'image' in message:
-            imgs.append(message['image'])
+            images.append(message['image'])
 
-    # Check if number of image placeholders and number of images passed are valid
-    if len(imgs) != num_images:
-        if len(imgs) == 1:
-            # If only one image is available, copy it for num_images times. 
-            # For games that have single image for all turns, but the game passes only one image in the message
-            imgs *= num_images
-        else:
-            # If the number of images doesn't match. 
-            # For games that have different image at each turn, number of image in message = number of image passed.  
-            raise ValueError(f"Number of images ({len(imgs)}) does not match expected count ({num_images}).\nPlease check the messages and ensure there is an image link/location for each turn")
-
+    if not images:
+        return None
+    
     # Load Images
-    loaded_images = [load_image(m) for m in imgs]
+    loaded_images = []
+    for img in images:
+        if img.startswith('http') or img.startswith('https'):
+            image = Image.open(requests.get(img, stream=True).raw).convert('RGB')
+        else:
+            image = Image.open(img).convert('RGB')
+        loaded_images.append(image)
 
     return loaded_images
+
+def generate_idefics_output(messages: list[Dict], 
+                            model: IdeficsForVisionText2Text, 
+                            processor: AutoProcessor,
+                            max_tokens: int, 
+                            device) -> list[str]:
+    '''
+    Return generated text from Idefics model 
+
+    param messages: A list[Dict] type object passed to the backend containing 'role', 'content' and 'image'
+    param model: Idefics model
+    param processor: Idefics processor
+    param device: Processing device - cuda/CPU
+    '''
+
+    #Create a list containing the prompt text and images specific to idefics input
+    #Refer - https://huggingface.co/HuggingFaceM4/idefics-80b-instruct
+    idefics_input = [] 
+    for m in messages:
+        if m['role'] == 'user':
+            idefics_input.append('\nUser: ' + m['content'])
+            if 'image' in m.keys():
+                idefics_input.append(m['image'])
+            idefics_input.append('<end_of_utterance>')
+        elif m['role'] == 'assistant':
+            idefics_input.append('\nAssistant: ' + m['content'])        
+            idefics_input.append('<end_of_utterance>')    
+    idefics_input.append('\nAssistant:')  
+    idefics_input = [idefics_input]
+
+    inputs = processor(idefics_input, add_end_of_utterance_token=False, return_tensors="pt").to(device)
+ 
+    # Generation args for Idefics
+    exit_condition = processor.tokenizer("<end_of_utterance>", add_special_tokens=False).input_ids
+    bad_words_ids = processor.tokenizer(["<image>", "<fake_token_around_image>"], add_special_tokens=False).input_ids
+    generated_ids = model.generate(**inputs, eos_token_id=exit_condition, bad_words_ids=bad_words_ids, max_length=max_tokens)
+    generated_text = processor.batch_decode(generated_ids)
+
+    return generated_text
 
 
 class HuggingfaceMultimodal(backends.Backend):
@@ -138,14 +163,18 @@ class HuggingfaceMultimodalModel(backends.Model):
         super().__init__(model_spec)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.processor = load_processor(model_spec)
-        self.multimodal_model = load_model(model_spec).to(self.device)
+        self.multimodal_model = load_model(model_spec)
         self.template = model_spec["custom_chat_template"]
-        self.assistant_tag = model_spec["assistant"]
-        self.image_placeholder = model_spec["placeholder"]
-        self.hf_model_str = model_spec['huggingface_id']
+        self.cull = model_spec["eos_to_cull"]
 
-    def generate_response(self, messages: List[Dict],
-                          log_messages: bool = False) -> Tuple[Any, Any, str]:
+        self.padding = False
+        self.IDEFICS = False
+        if model_spec['model_name'] == 'idefics-80b-instruct':
+            self.IDEFICS = True
+        if model_spec["padding"]:
+            self.padding = True
+
+    def generate_response(self, messages: List[Dict]) -> Tuple[Any, Any, str]:
         """
         :param messages: for example
                 [
@@ -158,45 +187,42 @@ class HuggingfaceMultimodalModel(backends.Model):
         :param log_messages: If True, raw and cleaned messages passed will be logged.
         :return: the continuation
         """
-
-        # log current given messages list:
-        if log_messages:
-            logger.info(f"Raw messages passed: {messages}")
-
-        # Cleanup double user messages
-        cleaned_messages = clean_messages(messages)
-
+        print(f"Input Messages: {messages}\n")
         # Get prompt by applying jinja template
         template_str = self.template
         template = Template(template_str)
-        prompt_text = template.render(messages=cleaned_messages)
-        
-        # Replace image placeholder with the correct one for the model
-        prompt_text = prompt_text.replace('<image>', self.image_placeholder)
+        prompt_text = template.render(messages=messages)
 
         # Get a list of images that will be passed to the Processor
-        images = get_images(prompt_text, messages, self.image_placeholder)
+        images = get_images(messages)
+        if self.padding and images:
+            images = pad_images(images)
 
-        # Store prompt_text
-        prompt = {"inputs": prompt_text, "max_new_tokens": self.get_max_tokens(), "temprature": self.get_temperature()}
-        
-        # Generate the output
-        if not images:
-            inputs = self.processor(prompt_text, images=[Image.new("RGB", (300,300))], padding=True, return_tensors="pt").to("cuda")
-            inputs["pixel_values"] = None
-        else:
-            inputs = self.processor(prompt_text, images=images, padding=True, return_tensors="pt").to("cuda")
-        model_output = self.multimodal_model.generate(**inputs, max_new_tokens=self.get_max_tokens())
-        generated_text = self.processor.batch_decode(model_output, skip_special_tokens=True)
+        print(f"Prompt Text: {prompt_text}\n")
+        print(f"Images Input: {images}\n")
+        prompt = {"inputs": prompt_text, "max_new_tokens": self.get_max_tokens(), "temperature": self.get_temperature()}
+
+        if not self.IDEFICS:         
+            # Generate the output
+            if not images: # If no images are present in the history + current uttereance, use tokenizer to get inputs
+                inputs = self.processor.tokenizer(prompt_text, return_tensors="pt").to(self.device)
+            else:
+                inputs = self.processor(prompt_text, images=images, return_tensors="pt").to(self.device)
+            model_output = self.multimodal_model.generate(**inputs, max_new_tokens=self.get_max_tokens())
+            generated_text = self.processor.batch_decode(model_output, skip_special_tokens=True)
+        else:    
+            generated_text = generate_idefics_output(messages=messages, 
+                                                     model=self.multimodal_model,
+                                                     processor=self.processor,
+                                                     max_tokens=self.get_max_tokens(),
+                                                     device=self.device)
+            
 
         # Store generated text
         response = {'response': generated_text}
 
-        if self.hf_model_str in ["llava-hf/llava-v1.6-34b-hf"]:
-            for text in generated_text:
-                response_text = text.split(self.assistant_tag)[-1] # Get the last assistant response
-        else:
-            for text in generated_text:
-                response_text = text.split(self.assistant_tag + ":")[-1] # Get the last assistant response
+        print(f"Response: {response}\n")
+
+        response_text = generated_text[0].split(self.cull)[-1] # Get the last assistant response
 
         return prompt, response, response_text
