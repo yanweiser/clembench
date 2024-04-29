@@ -1,0 +1,3 @@
+We are currently in this room <image>. Please help me with the following task. The goal is to find a $GOAL$. In each room I will ask you if we have found our target. If not, I will ask you in what direction we should go. 
+Let us start. 
+Is the room you are seeing a $GOAL$? Answer with only "yes" or "no".

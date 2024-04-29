@@ -1,0 +1,1 @@
+Please only give your answer in the given format so I can understand it. To move to a nieghboring room answer with "GO: <direction>" and replace <direction> with one of the available directions which are: $DIRECTIONS$. If you think there are no more rooms we need to visit, simply anser with "DONE". What should we do? 
