@@ -16,8 +16,9 @@ RANDOM_PATH = 'random_test_images'
 IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
-DONE_REGEX = "DONE"
-MOVE_REGEX = "GO:\s*(north|east|south|west)"
+RESONSE_REGEX = '{"description":\s*".+",(\s|\n)*"action":\s*".+"}'
+DONE_REGEX = 'DONE'
+MOVE_REGEX = 'GO:\s*(north|east|west|south)'
 
 
 def create_instances(grid_size = GRIDS['medium'], graph_size = SIZES['medium'], num_instances = NUM_INSTANCES):
@@ -53,21 +54,14 @@ def instance_from_args(args, prompts):
         num_instances=NUM_INSTANCES
     )
     for i in range(len(instances)):
-        if args['images']:
-            instances[i]['initial_prompt'] = prompts['initial']
-            instances[i]['success_response'] = prompts['later_success']
-            instances[i]['invalid_response'] = prompts['later_invalid']
-        else:
-            instances[i]['initial_prompt'] = prompts['initial_no_img']
-            instances[i]['success_response'] = prompts['later_success_no_img']
-            instances[i]['invalid_response'] = prompts['later_invalid_no_img']
-            instances[i]['use_images'] = False
+        instances[i]['initial_prompt'] = prompts['initial']
+        instances[i]['success_response'] = prompts['later_success']
+        instances[i]['invalid_response'] = prompts['later_invalid']
         if args['reprompt']:
             instances[i]['reprompt'] = True
         instances[i]["reprompt_format"] = prompts["reprompt_format"]
         instances[i]["limit_warning"] = prompts["limit_warning"]
         instances[i]["loop_warning"] = prompts["loop_warning"]
-        
     return instances
         
         
@@ -79,28 +73,20 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
     def on_generate(self):
         prompts = {
             'initial': self.load_template('resources/initial_prompts/prompt.template'),
-            'initial_no_img': self.load_template('resources/initial_prompts/prompt_no_img.template'),
+            'initial_one_shot': self.load_template('resources/initial_prompts/prompt_one_shot.template'),
             'later_success': self.load_template('resources/later_prompts/successful_move.template'),
             'later_invalid': self.load_template('resources/later_prompts/invalid_move.template'),
-            'later_success_no_img': self.load_template('resources/later_prompts/successful_move_no_img.template'),
-            'later_invalid_no_img': self.load_template('resources/later_prompts/invalid_move_no_img.template'),
             'reprompt_format': self.load_template('resources/reprompts/invalid_format.template'),
             'limit_warning': self.load_template('resources/later_prompts/turn_limit.template'),
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
         }
         experiments = {
-            'random_small': {"size": "small", "images": True, "reprompt": False},
-            'random_medium': {"size": "medium", "images": True, "reprompt": False},
-            # 'random_large': {"size": "large", "images": True, "reprompt": False},
-            # 'random_small_reprompt': {"size": "small", "images": True, "reprompt": True},
-#             'random_medium_reprompt': {"size": "medium", "images": True, "reprompt": True},
-            # 'random_large_reprompt': {"size": "large", "images": True, "reprompt": True},
-            # 'random_small_no_img': {"size": "small", "images": False, "reprompt": False},
-            'random_medium_no_img': {"size": "medium", "images": False, "reprompt": False},
-            # 'random_large_no_img': {"size": "large", "images": False, "reprompt": False},
-            # 'random_small_no_img_reprompt': {"size": "small", "images": False, "reprompt": True},
-#             'random_medium_no_img_reprompt': {"size": "medium", "images": False, "reprompt": True},
-            # 'random_large_no_img_reprompt': {"size": "large", "images": False, "reprompt": True}
+            'random_small': {"size": "small", "reprompt": False},
+            'random_medium': {"size": "medium", "reprompt": False},
+            # 'random_large': {"size": "large", "reprompt": False},
+            # 'random_small_reprompt': {"size": "small", "reprompt": True},
+            # 'random_medium_reprompt': {"size": "medium", "reprompt": True},
+            # 'random_large_reprompt': {"size": "large", "reprompt": True},
         }
 
         for exp in experiments.keys():
@@ -113,6 +99,7 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
                      instance[key] = value
                  instance["move_construction"] = MOVE_CONSTRUCTION
                  instance["stop_construction"] = STOP_CONSTRUCTION
+                 instance["response_regex"] = RESONSE_REGEX
                  instance["done_regex"] = DONE_REGEX
                  instance["move_regex"] = MOVE_REGEX
                  game_id += 1

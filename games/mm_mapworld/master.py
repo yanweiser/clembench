@@ -151,6 +151,7 @@ class MmMapWorld(DialogueGameMaster):
         self.init_prompt = game_instance["initial_prompt"]
         self.visited_nodes=[self.current_room]
         
+        self.response_regex = re.compile(game_instance["response_regex"])
         self.done_regex = re.compile(game_instance["done_regex"])
         self.move_regex = re.compile(game_instance["move_regex"])
         
@@ -187,44 +188,42 @@ class MmMapWorld(DialogueGameMaster):
         return False
     
     def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
-        """
-        Hook
-
-        Decide if a response utterance should be modified. If not simply return the utterance.
-
-        When a modified utterance and a true value is returned, then a 'parse' event is logged.
-
-        :param player: that produced the response
-        :param utterance: to be potentially modified
-        :return: the (modified) utterance and if to log the parse action (default: True)
-        """
         if player == self.walker:
             utterance = utterance.replace("\n", "").strip()
             for word in DIRS:
                 utterance = utterance.replace(word.capitalize(), word)
-            done_hit = re.search(self.done_regex, utterance)
-            if done_hit:
-                utterance = done_hit.group()
-            hit = re.search(self.move_regex, utterance)
-            if hit:
-                utterance = hit.group()
+            found = re.search(self.response_regex, utterance)
+            if found:
+                utterance = found.group()
         return utterance, True
 
     def _validate_player_response(self, player: Player, answer: str) -> bool:
-        """Check if the utterance conforms to rules (cloudgame specific)."""
-        answer = answer.replace("\n", "").strip()
-        for word in DIRS:
-            answer = answer.replace(word.capitalize(), word)
         if player == self.walker:
+            answer = answer.replace("\n", "").strip()
+            for word in DIRS:
+                answer = answer.replace(word.capitalize(), word)
             # in case we abort we set the next move to None
             self.move = None
             # Check if the answer begins with 'MOVE:'
-            done_hit = re.search(self.done_regex, answer)
-            if done_hit:
+            hit = re.search(self.response_regex, answer)
+            if not hit:
+                if self.do_reprompt:
+                    if self.did_reprompt:
+                        self.aborted = True
+                        self.log_to_self("Invalid format", "Game aborted.")
+                        return False
+                    self.need_reprompt = True
+                    self.log_to_self("reprompting", "invalid format")
+                    return True
+            
+            loaded = json.loads(hit.group())
+            action = loaded["action"]
+            action_hit = re.search(self.done_regex, action)
+            if action_hit:
                 self.stop = True
                 self.log_to_self("DONE", True)
                 return True
-            hit = re.search(self.move_regex, answer)
+            hit = re.search(self.move_regex, action)
             if not hit:
                 if self.do_reprompt:
                     if self.did_reprompt:
@@ -240,7 +239,6 @@ class MmMapWorld(DialogueGameMaster):
             new_dir = hit.group(1)
             self.move = new_dir
             self.log_to_self("Valid format", "Continue")
-       
         return True
     
     def _after_add_player_response(self, player: Player, utterance: str):
@@ -286,17 +284,24 @@ class MmMapWorld(DialogueGameMaster):
             
 
     ########## Multimodal specific functions:
+    
+    def remove_previous_images(self, player: Player):
+        history = self.messages_by_names[player.descriptor]
+        for i in range(len(history)-1):
+            if "image" in history[i]:
+                del history[i]['image']
 
     def add_message(self, player: Player, utterance: str, role: str, image = None):
         if image is None:
             message = {"role": role, "content": utterance}
         else:
             message = {"role": role, "content": utterance, "image": image}
+            self.remove_previous_images(player)
         history = self.messages_by_names[player.descriptor]
         history.append(message)
 
     def add_user_message(self, player: Player, utterance: str, image = None):
-        self.add_message(player, utterance, role="user", image= image)
+        self.add_message(player, utterance, role="user", image=image)
         
         
     ####### scoring      
@@ -352,7 +357,6 @@ class MM_MapWorldScorer(GameScorer):
                         q.put(new)
         return found
     
-    #BETA
     def plot_path(self, path):
         offset = 0.03
         fig = plt.figure(figsize=(4, 4))
