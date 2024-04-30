@@ -54,7 +54,10 @@ def instance_from_args(args, prompts):
         num_instances=NUM_INSTANCES
     )
     for i in range(len(instances)):
-        instances[i]['initial_prompt'] = prompts['initial']
+        if args['one_shot']:
+            instances[i]['initial_prompt'] = prompts['initial_one_shot']
+        else:
+            instances[i]['initial_prompt'] = prompts['initial']
         instances[i]['success_response'] = prompts['later_success']
         instances[i]['invalid_response'] = prompts['later_invalid']
         if args['reprompt']:
@@ -81,8 +84,10 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
         }
         experiments = {
-            'random_small': {"size": "small", "reprompt": False},
-            'random_medium': {"size": "medium", "reprompt": False},
+#             'random_small': {"size": "small", "reprompt": False},
+#             'random_medium': {"size": "medium", "reprompt": False},
+            'random_small_one_shot': {"size": "small", "reprompt": False, "one_shot": True},
+            'random_medium_one_shot': {"size": "medium", "reprompt": False, "one_shot": True},
             # 'random_large': {"size": "large", "reprompt": False},
             # 'random_small_reprompt': {"size": "small", "reprompt": True},
             # 'random_medium_reprompt': {"size": "medium", "reprompt": True},

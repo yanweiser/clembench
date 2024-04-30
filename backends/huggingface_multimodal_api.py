@@ -82,7 +82,7 @@ def pad_images(images):
 
     return padded_images
 
-def get_images(messages: list[Dict]) -> list:
+def get_images(messages: List[Dict]) -> list:
     '''
     Return loaded images from messages
 
@@ -109,11 +109,11 @@ def get_images(messages: list[Dict]) -> list:
 
     return loaded_images
 
-def generate_idefics_output(messages: list[Dict], 
+def generate_idefics_output(messages: List[Dict], 
                             model: IdeficsForVisionText2Text, 
                             processor: AutoProcessor,
                             max_tokens: int, 
-                            device) -> list[str]:
+                            device) -> List[str]:
     '''
     Return generated text from Idefics model 
 

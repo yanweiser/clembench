@@ -91,7 +91,7 @@ class PathDescriber(Player):
             self.current_room = new_room
 
     def _custom_response(self, messages, turn_idx) -> str:
-        last_move = messages[-1]['content']
+        last_move = json.loads(messages[-1]['content'])['action']
         without_move = last_move.replace('GO:', '')
         words = without_move.strip().split()
         new_dir = words[0]
@@ -192,6 +192,7 @@ class MmMapWorld(DialogueGameMaster):
             utterance = utterance.replace("\n", "").strip()
             for word in DIRS:
                 utterance = utterance.replace(word.capitalize(), word)
+                utterance = utterance.replace(word.upper(), word)
             found = re.search(self.response_regex, utterance)
             if found:
                 utterance = found.group()
@@ -202,6 +203,7 @@ class MmMapWorld(DialogueGameMaster):
             answer = answer.replace("\n", "").strip()
             for word in DIRS:
                 answer = answer.replace(word.capitalize(), word)
+                answer = answer.replace(word.upper(), word)
             # in case we abort we set the next move to None
             self.move = None
             # Check if the answer begins with 'MOVE:'
@@ -215,7 +217,9 @@ class MmMapWorld(DialogueGameMaster):
                     self.need_reprompt = True
                     self.log_to_self("reprompting", "invalid format")
                     return True
-            
+                self.aborted = True
+                self.log_to_self("Invalid format", "Game aborted.")
+                return False
             loaded = json.loads(hit.group())
             action = loaded["action"]
             action_hit = re.search(self.done_regex, action)
