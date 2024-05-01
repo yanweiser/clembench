@@ -208,8 +208,8 @@ class MatchIt(DialogueGameMaster):
                 player.question = ""
                 player.answer = ""
                 player.decision = ""
-            else: 
-                self.add_user_message(other_player, "DESCRIPTION: both a + q / dec+q were not filled, this is a filler.")
+            #else: 
+                #self.add_user_message(other_player, "DESCRIPTION: both a + q / dec+q were not filled, this is a filler.")
                 #self.log_to_self("note", "A:" + player.answer + " ,Q:" + player.question + " ,D:" + player.decision )
 
 

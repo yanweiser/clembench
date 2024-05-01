@@ -18,7 +18,7 @@ SEED: int = 42
 # Flags that have to be at the beginning of each response; are also specified in the prompts
 FLAGS: dict[str, str] = {"description": "DESCRIPTION:", "question": "QUESTION:", "answer": "ANSWER:", "decision": "DECISION:"}
 SOL_SAME: str = "same image"
-SOL_DIFF: str = "different image"
+SOL_DIFF: str = "different images"
 
 class MatchItInstanceGenerator(GameInstanceGenerator):
     def __init__(self, game_name):
@@ -53,7 +53,7 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
 
 
         q_reprompt = self.load_template('resources/initial_prompts/q_reprompt.template').replace("$FLAG$", FLAGS["question"])
-        d_reprompt = self.load_template('resources/initial_prompts/d_reprompt.template').replace("$SOL_SAME$", SOL_SAME).replace("$SOL_DIFF$", SOL_SAME).replace("$FLAG$", FLAGS["decision"])
+        d_reprompt = self.load_template('resources/initial_prompts/d_reprompt.template').replace("$SOL_SAME$", SOL_SAME).replace("$SOL_DIFF$", SOL_DIFF).replace("$FLAG$", FLAGS["decision"])
         a_request = self.load_template('resources/initial_prompts/a_request.template').replace("$FLAG$", FLAGS["answer"])
 
 

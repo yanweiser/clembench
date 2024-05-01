@@ -5,13 +5,13 @@ from typing import Dict
 
 GAME_NAME: str = "matchit_ascii"
 # n instances to be generated
-N: int = 10 # max = len(similar_images.csv) = 161, if not using other image pairs
+N: int = 3 # max = len(similar_images.csv) = 161, if not using other image pairs
 # paths to image pair tables
 PATH_PAIRS: str = "games/matchit_ascii/resources/grid_pairs/grid-pairs.csv"
 PATH_GRIDS: str = "games/matchit_ascii/resources/grid_pairs/grids_matchit.json"
 
 #how many questions can each player ask?
-DEC_TURN: int = 3
+DEC_TURN: int = 2
 # should the players be informed about the number of questions they can ask?
 INFO_NUM_QUESTIONS: bool = False
 
@@ -20,7 +20,7 @@ SEED: int = 42
 # Flags that have to be at the beginning of each response; are also specified in the prompts
 FLAGS: Dict = {"description": "DESCRIPTION:", "question": "QUESTION:", "answer": "ANSWER:", "decision": "DECISION:"}
 SOL_SAME: str = "same grid"
-SOL_DIFF: str = "different grid"
+SOL_DIFF: str = "different grids"
 
 class MatchItInstanceGenerator(GameInstanceGenerator):
     def __init__(self, game_name):
@@ -39,7 +39,7 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
         prompt_a = self.load_template('resources/prompts/player_a_prompt.template').replace("$FLAG$", FLAGS["description"])
         prompt_b = self.load_template('resources/prompts/player_b_prompt.template').replace("$FLAG$", FLAGS["description"])
         q_reprompt = self.load_template('resources/prompts/q_reprompt.template').replace("$FLAG$", FLAGS["question"])
-        d_reprompt = self.load_template('resources/prompts/d_reprompt.template').replace("$SOL_SAME$", SOL_SAME).replace("$SOL_DIFF$", SOL_SAME).replace("$FLAG$", FLAGS["decision"])
+        d_reprompt = self.load_template('resources/prompts/d_reprompt.template').replace("$SOL_SAME$", SOL_SAME).replace("$SOL_DIFF$", SOL_DIFF).replace("$FLAG$", FLAGS["decision"])
         a_request = self.load_template('resources/prompts/a_request.template').replace("$FLAG$", FLAGS["answer"])
 
         if INFO_NUM_QUESTIONS:

@@ -38,7 +38,7 @@ class MatchItPlayer(Player):
         elif "QUESTION" in last_message:
             return f"ANSWER: from Player {self.role}"
         elif "decision" in last_message:
-            return "DECISION: Different grid."
+            return "DECISION: Different grids."
         else: 
             return "ANSWER: How did we land here? This is the else in the mock answers."
 
@@ -208,8 +208,8 @@ class MatchItAscii(DialogueGameMaster):
                 player.question = ""
                 player.answer = ""
                 player.decision = ""
-            else: 
-                self.add_user_message(other_player, "DESCRIPTION: both a + q / dec+q were not filled, this is a filler.")
+            #else: 
+                #self.add_user_message(other_player, "DESCRIPTION: both a + q / dec+q were not filled, this is a filler.")
                 #self.log_to_self("note", "A:" + player.answer + " ,Q:" + player.question + " ,D:" + player.decision )
 
 
