@@ -9,6 +9,7 @@ from time import sleep
 import numpy as np
 import matplotlib.pyplot as plt
 import imageio
+import shutil
 
 import games.mm_mapworld.utils as utils
 
@@ -90,7 +91,7 @@ class PathDescriber(Player):
             self.current_room = new_room
 
     def _custom_response(self, messages, turn_idx) -> str:
-        last_move = messages[-1]['content']
+        last_move = json.loads(messages[-1]['content'])['action']
         without_move = last_move.replace('GO:', '')
         words = without_move.strip().split()
         new_dir = words[0]
@@ -104,7 +105,7 @@ class PathDescriber(Player):
             response = self.success_response.replace("$DIRECTIONS$", ", ".join(available_directions))
         if self.detect_loop() and self.use_loop_warning:
             response = self.loop_response + response
-        if turn_idx == (MAX_TURNS - 1) and self.use_turn_limit_warning:
+        if turn_idx == (MAX_TURNS - 2) and self.use_turn_limit_warning:
             response = self.limit_warning + response
         return response
 
@@ -150,6 +151,7 @@ class MmMapWorld(DialogueGameMaster):
         self.init_prompt = game_instance["initial_prompt"]
         self.visited_nodes=[self.current_room]
         
+        self.response_regex = re.compile(game_instance["response_regex"])
         self.done_regex = re.compile(game_instance["done_regex"])
         self.move_regex = re.compile(game_instance["move_regex"])
         
@@ -186,44 +188,46 @@ class MmMapWorld(DialogueGameMaster):
         return False
     
     def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
-        """
-        Hook
-
-        Decide if a response utterance should be modified. If not simply return the utterance.
-
-        When a modified utterance and a true value is returned, then a 'parse' event is logged.
-
-        :param player: that produced the response
-        :param utterance: to be potentially modified
-        :return: the (modified) utterance and if to log the parse action (default: True)
-        """
         if player == self.walker:
             utterance = utterance.replace("\n", "").strip()
             for word in DIRS:
                 utterance = utterance.replace(word.capitalize(), word)
-            done_hit = re.search(self.done_regex, utterance)
-            if done_hit:
-                utterance = done_hit.group()
-            hit = re.search(self.move_regex, utterance)
-            if hit:
-                utterance = hit.group()
+                utterance = utterance.replace(word.upper(), word)
+            found = re.search(self.response_regex, utterance)
+            if found:
+                utterance = found.group()
         return utterance, True
 
     def _validate_player_response(self, player: Player, answer: str) -> bool:
-        """Check if the utterance conforms to rules (cloudgame specific)."""
-        answer = answer.replace("\n", "").strip()
-        for word in DIRS:
-            answer = answer.replace(word.capitalize(), word)
         if player == self.walker:
+            answer = answer.replace("\n", "").strip()
+            for word in DIRS:
+                answer = answer.replace(word.capitalize(), word)
+                answer = answer.replace(word.upper(), word)
             # in case we abort we set the next move to None
             self.move = None
             # Check if the answer begins with 'MOVE:'
-            done_hit = re.search(self.done_regex, answer)
-            if done_hit:
+            hit = re.search(self.response_regex, answer)
+            if not hit:
+                if self.do_reprompt:
+                    if self.did_reprompt:
+                        self.aborted = True
+                        self.log_to_self("Invalid format", "Game aborted.")
+                        return False
+                    self.need_reprompt = True
+                    self.log_to_self("reprompting", "invalid format")
+                    return True
+                self.aborted = True
+                self.log_to_self("Invalid format", "Game aborted.")
+                return False
+            loaded = json.loads(hit.group())
+            action = loaded["action"]
+            action_hit = re.search(self.done_regex, action)
+            if action_hit:
                 self.stop = True
                 self.log_to_self("DONE", True)
                 return True
-            hit = re.search(self.move_regex, answer)
+            hit = re.search(self.move_regex, action)
             if not hit:
                 if self.do_reprompt:
                     if self.did_reprompt:
@@ -239,7 +243,6 @@ class MmMapWorld(DialogueGameMaster):
             new_dir = hit.group(1)
             self.move = new_dir
             self.log_to_self("Valid format", "Continue")
-       
         return True
     
     def _after_add_player_response(self, player: Player, utterance: str):
@@ -285,17 +288,24 @@ class MmMapWorld(DialogueGameMaster):
             
 
     ########## Multimodal specific functions:
+    
+    def remove_previous_images(self, player: Player):
+        history = self.messages_by_names[player.descriptor]
+        for i in range(len(history)-1):
+            if "image" in history[i]:
+                del history[i]['image']
 
     def add_message(self, player: Player, utterance: str, role: str, image = None):
         if image is None:
             message = {"role": role, "content": utterance}
         else:
             message = {"role": role, "content": utterance, "image": image}
+            self.remove_previous_images(player)
         history = self.messages_by_names[player.descriptor]
         history.append(message)
 
     def add_user_message(self, player: Player, utterance: str, image = None):
-        self.add_message(player, utterance, role="user", image= image)
+        self.add_message(player, utterance, role="user", image=image)
         
         
     ####### scoring      
@@ -351,7 +361,6 @@ class MM_MapWorldScorer(GameScorer):
                         q.put(new)
         return found
     
-    #BETA
     def plot_path(self, path):
         offset = 0.03
         fig = plt.figure(figsize=(4, 4))
@@ -359,8 +368,8 @@ class MM_MapWorldScorer(GameScorer):
         traveled = {}
 
         for edge in self.edges:
-            x1, y1 = edge.pop()  # Get coordinates of one endpoint
-            x2, y2 = edge.pop()  # Get coordinates of the other endpoint  
+            x1, y1 = edge[0]  # Get coordinates of one endpoint
+            x2, y2 = edge[1]  # Get coordinates of the other endpoint  
             plt.plot([x1, x2], [y1, y2], color='gray', linestyle='--')
             traveled[((x1, y1), (x2, y2))] = 0
 
@@ -465,7 +474,7 @@ class MM_MapWorldScorer(GameScorer):
             self.log_episode_score('invalid_moves', invalid_moves)
             self.log_episode_score('visited', len(visited))
             self.log_episode_score('seen', len(seen))
-            eff = 100*sum(good_move)/len(good_move)
+            eff = 100*sum(good_move)/max([len(good_move), 1])
             self.log_episode_score('effieciency', eff)
             exp = 100*len(visited)/len(self.nodes)
             self.log_episode_score('exploration', exp)
@@ -484,15 +493,21 @@ class MM_MapWorldScorer(GameScorer):
         if not os.path.exists("tmp"):
             os.makedirs("tmp")
         path_plot = self.plot_path(self.path)
-        path_plot.savefig(os.path.join(results_root, dialogue_pair, game_record_dir, "path.png"))
+        path_plot.savefig(os.path.join(results_root, dialogue_pair, self.name, game_record_dir, "path.png"))
+        plt.close()
         if not os.path.exists("tmp/step_plots"):
             os.makedirs("tmp/step_plots")
         images = []
         for i in range(len(self.path)):
-            step_plot = self.plot_path(self.path[:i])
+            step_plot = self.plot_path(self.path[:i+1])
             step_plot.savefig(f"tmp/step_plots/{i}.png")
             images.append(imageio.imread(f"tmp/step_plots/{i}.png"))
-        imageio.mimsave(os.path.join(results_root, dialogue_pair, game_record_dir, "animation.gif"), images)
+            plt.close()
+        imageio.mimsave(os.path.join(results_root, dialogue_pair, self.name, game_record_dir, "animation.gif"), images, fps=1, loop=True)
+        try:
+            shutil.rmtree("tmp")
+        except OSError as e:
+            print("Error: %s - %s." % (e.filename, e.strerror))
         
         
                 

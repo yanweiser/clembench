@@ -1,3 +1,0 @@
-Please help me with the following task. The goal is to visit room on a map with the fewest number of room changes. In each room you need to decide the direction to go in. Also, you need to recognize once there are no new rooms to visit and decide to stop exploring at this point. Please give your answer in the following format: “GO: <direction>”: to change the room, replace direction with a cardinal direction (north, south, east, west). “DONE”: This will end the game and we will be evaluated on how well we explored the map.
-Let us start. 
-From this room we can go in the following directions: $INITIAL_DIRECTIONS$. What should we do?

@@ -10,6 +10,26 @@
     "backend": "openai_compatible"
   },
   {
+    "model_name": "Llama-3-70B-Instruct",
+    "model_id": "meta-llama/Meta-Llama-3-70B-Instruct",
+    "backend": "openai_compatible"
+  },
+  {
+    "model_name": "Llama-3-8B-Instruct",
+    "model_id": "meta-llama/Meta-Llama-3-8B-Instruct",
+    "backend": "openai_compatible"
+  },
+  {
+    "model_name": "Mixtral-8x22B-Instruct-v0.1",
+    "model_id": "mistralai/Mixtral-8x22B-Instruct-v0.1",
+    "backend": "openai_compatible"
+  },
+  {
+    "model_name": "Mixtral-8x7B-Instruct-v0.1",
+    "model_id": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+    "backend": "openai_compatible"
+  },
+  {
     "model_name": "fsc-openchat-3.5-0106",
     "model_id": "openchat-3.5-0106",
     "backend": "openai_compatible"
@@ -18,6 +38,11 @@
     "model_name": "fsc-codellama-34b-instruct",
     "model_id": "codellama-34b-instruct",
     "backend": "openai_compatible"
+  },
+  {
+    "model_name": "gpt-4-turbo-2024-04-09",
+    "model_id": "gpt-4-turbo-2024-04-09",
+    "backend": "openai"
   },
   {
     "model_name": "gpt-4-1106-preview",
@@ -77,6 +102,16 @@
   {
     "model_name": "command",
     "model_id": "command",
+    "backend": "cohere"
+  },
+  {
+    "model_name": "command-r",
+    "model_id": "command-r",
+    "backend": "cohere"
+  },
+  {
+    "model_name": "command-r-plus",
+    "model_id": "command-r-plus",
     "backend": "cohere"
   },
   {
@@ -424,71 +459,178 @@
     "model_name": "llava-1.5-7b-hf",
     "backend": "huggingface_multimodal",
     "huggingface_id": "llava-hf/llava-1.5-7b-hf",
+    "model_type": "Vision2Seq",
+    "eos_to_cull": "ASSISTANT:",
+    "padding": false,
+    "premade_chat_template": false,
+    "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}{% if message['image'] %}\nUSER: <image>\n{{message['content']}}{% else %}\nUSER:\n{{message['content']}}{% endif %}{% elif message['role'] == 'assistant' %}\nASSISTANT:{{message['content']}}{% endif %}{% endfor %}\nASSISTANT:"
+  },
+  {
+    "model_name": "llava-1.5-13b-hf",
+    "backend": "huggingface_multimodal",
+    "huggingface_id": "llava-hf/llava-1.5-13b-hf",
+    "model_type": "Vision2Seq",
+    "eos_to_cull": "ASSISTANT:",
+    "padding": false,
+    "premade_chat_template": false,
+    "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}{% if message['image'] %}\nUSER: <image>\n{{message['content']}}{% else %}\nUSER:\n{{message['content']}}{% endif %}{% elif message['role'] == 'assistant' %}\nASSISTANT:{{message['content']}}{% endif %}{% endfor %}\nASSISTANT:"
+  },
+  {
+    "model_name": "llava-v1.6-34b-hf",
+    "backend": "huggingface_multimodal",
+    "huggingface_id": "llava-hf/llava-v1.6-34b-hf",
+    "model_type": "Vision2Seq",
+    "eos_to_cull": "assistant",
+    "padding": true,
+    "premade_chat_template": false,
+    "custom_chat_template": "<|im_start|>system\nAnswer the questions.<|im_end|>{%- for message in messages -%}{% if message['role'] == 'user' %}{% if message['image']%}<|im_start|>user\n<image>\n{{message['content']}}<|im_end|>{% else %}<|im_start|>\nuser\n{{message['content']}}<|im_end|>{% endif %}{% elif message['role'] == 'assistant' %}<|im_start|>assistant\n{{message['content']}}<|im_end|>{% endif %}{% endfor %}<|im_start|>assistant\n"
+  },
+  {
+    "model_name": "llava-v1.6-mistral-7b-hf",
+    "backend": "huggingface_multimodal",
+    "huggingface_id": "llava-hf/llava-v1.6-mistral-7b-hf",
+    "model_type": "Vision2Seq",
+    "eos_to_cull": "[/INST]",
+    "padding": true,
+    "premade_chat_template": false,
+    "custom_chat_template": "{% for message in messages %}{% if message['role'] == 'user' %}{% if message['image']%}[INST] <image>\n{{message['content']}} [/INST]{% else %}[INST]\n{{message['content']}} [/INST]{% endif %}{% elif message['role'] == 'assistant' %}{{message['content']}}{% endif %}{% endfor %}"
+  },
+  {
+    "model_name": "llava-v1.6-vicuna-13b-hf",
+    "backend": "huggingface_multimodal",
+    "huggingface_id": "llava-hf/llava-v1.6-vicuna-13b-hf",
+    "model_type": "Vision2Seq",
+    "eos_to_cull": "ASSISTANT:",
+    "padding": true,
+    "premade_chat_template": false,
+    "custom_chat_template": "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.{% for message in messages %}{% if message['role'] == 'user' %}{% if message['image'] %}USER:<image>\n{{message['content']}}{% else %}USER:\n{{message['content']}}{% endif %}{% elif message['role'] == 'assistant' %}ASSISTANT:{{message['content']}}{% endif %}{% endfor %}ASSISTANT:"
+  },
+  {
+    "model_name": "llava-v1.6-vicuna-7b-hf",
+    "backend": "huggingface_multimodal",
+    "huggingface_id": "llava-hf/llava-v1.6-vicuna-7b-hf",
+    "model_type": "Vision2Seq",
+    "eos_to_cull": "ASSISTANT:",
+    "padding": true,
+    "premade_chat_template": false,
+    "custom_chat_template": "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.{% for message in messages %}{% if message['role'] == 'user' %}{% if message['image'] %}USER:<image>\n{{message['content']}}{% else %}USER:\n{{message['content']}}{% endif %}{% elif message['role'] == 'assistant' %}ASSISTANT:{{message['content']}}{% endif %}{% endfor %}ASSISTANT:"
+  },
+  {
+    "model_name": "idefics-80b-instruct",
+    "backend": "huggingface_multimodal",
+    "huggingface_id": "HuggingFaceM4/idefics-80b-instruct",
+    "model_type": "Idefics",
+    "eos_to_cull": "Assistant:",
+    "padding": false,
+    "premade_chat_template": false,
+    "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER: {{ message['content'] }} <end_of_utterance>\n{% else %}ASSISTANT: {{ message['content'] }} <end_of_utterance>\n{% endif %}{% endfor %}ASSISTANT:"
+  },
+  {
+    "model_name": "blip2-opt-2.7b",
+    "backend": "huggingface_multimodal",
+    "huggingface_id": "Salesforce/blip2-opt-2.7b",
+    "placeholder": "<image>",
+    "assistant": "ASSISTANT",
+    "premade_chat_template": false,
+    "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %} \nUSER: <image>\n{{ message['content'] }}{% else %} ASSISTANT: {{ message['content'] }}{% endif %}{% endfor %} ASSISTANT: "
+  },
+  {
+    "model_name": "vip-llava-7b-hf",
+    "backend": "huggingface_multimodal",
+    "huggingface_id": "llava-hf/vip-llava-7b-hf",
     "placeholder": "<image>",
     "assistant": "ASSISTANT",
     "premade_chat_template": false,
     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER:\n{{ message['content'] }}\n{% else %} ASSISTANT:\n{{ message['content'] }}\n{% endif %}{% endfor %}ASSISTANT:\n"
-   },
-   {
-     "model_name": "llava-1.5-13b-hf",
-     "backend": "huggingface_multimodal",
-     "huggingface_id": "llava-hf/llava-1.5-13b-hf",
-     "placeholder": "<image>",
-     "assistant": "ASSISTANT",
-     "premade_chat_template": false,
-     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER:\n{{ message['content'] }}\n{% else %} ASSISTANT:\n{{ message['content'] }}\n{% endif %}{% endfor %}ASSISTANT:\n"
-   },
-   {
-     "model_name": "llava-v1.6-mistral-7b-hf",
-     "backend": "huggingface_multimodal",
-     "huggingface_id": "llava-hf/llava-v1.6-mistral-7b-hf",
-     "placeholder": "<image>",
-     "assistant": "ASSISTANT",
-     "premade_chat_template": false,
-     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER:\n{{ message['content'] }}\n{% else %} ASSISTANT:\n{{ message['content'] }}\n{% endif %}{% endfor %}ASSISTANT:\n"
-   },
-   {
-     "model_name": "llava-v1.6-34b-hf",
-     "backend": "huggingface_multimodal",
-     "huggingface_id": "llava-hf/llava-v1.6-34b-hf",
-     "placeholder": "<image>",
-     "assistant": "ASSISTANT",
-     "premade_chat_template": false,
-     "custom_chat_template": "<|im_start|>system\nAnswer the questions.<|im_end|>{%- for message in messages -%}{% if message['role'] == 'user' %}<|im_start|>user\n{{ message['content'] }}<|im_end|>{% else %}<|im_start|>assistant\n{{ message['content'] }}<|im_end|>{% endif %}{% endfor %}<|im_start|>assistant\n"
-   },
-   {
-     "model_name": "blip2-opt-2.7b",
-     "backend": "huggingface_multimodal",
-     "huggingface_id": "Salesforce/blip2-opt-2.7b",
-     "placeholder": "<image>",
-     "assistant": "ASSISTANT",
-     "premade_chat_template": false,
-     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %} \nUSER: <image>\n{{ message['content'] }}{% else %} ASSISTANT: {{ message['content'] }}{% endif %}{% endfor %} ASSISTANT: "
-    },
-    {
-     "model_name": "vip-llava-7b-hf",
-     "backend": "huggingface_multimodal",
-     "huggingface_id": "llava-hf/vip-llava-7b-hf",
-     "placeholder": "<image>",
-     "assistant": "ASSISTANT",
-     "premade_chat_template": false,
-     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %}USER:\n{{ message['content'] }}\n{% else %} ASSISTANT:\n{{ message['content'] }}\n{% endif %}{% endfor %}ASSISTANT:\n"
-    },
-    {
-     "model_name": "kosmos-2-patch14-224",
-     "backend": "huggingface_multimodal",
-     "huggingface_id": "microsoft/kosmos-2-patch14-224",
-     "placeholder": "<grounding>",
-     "assistant": "Answer",
-     "premade_chat_template": false,
-     "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %} \n<grounding> Question: {{ message['content'] }}{% else %} Answer: {{ message['content'] }}{%- endif -%}{% endfor %} Answer: "
-   },
-   {
+  },
+  {
+    "model_name": "kosmos-2-patch14-224",
+    "backend": "huggingface_multimodal",
+    "huggingface_id": "microsoft/kosmos-2-patch14-224",
+    "placeholder": "<grounding>",
+    "assistant": "Answer",
+    "premade_chat_template": false,
+    "custom_chat_template": "{%- for message in messages -%}{% if message['role'] == 'user' %} \n<grounding> Question: {{ message['content'] }}{% else %} Answer: {{ message['content'] }}{%- endif -%}{% endfor %} Answer: "
+  },
+  {
     "model_name": "gemma-7b-it",
     "backend": "huggingface_local",
     "requires_api_key": true,
     "huggingface_id": "google/gemma-7b-it",
     "premade_chat_template": true,
     "eos_to_cull": "<eos>"
+  },
+  {
+    "model_name": "Qwen1.5-0.5B-Chat-GGUF-q8",
+    "backend": "llamacpp",
+    "huggingface_id": "Qwen/Qwen1.5-0.5B-Chat-GGUF",
+    "filename": "*q8_0.gguf",
+    "premade_chat_template": true,
+    "bos_string": "<s>",
+    "eos_string": "<|im_end|>",
+    "eos_to_cull": "<|im_end|>"
+  },
+  {
+    "model_name": "CapybaraHermes-2.5-Mistral-7B-GGUF-q4",
+    "backend": "llamacpp",
+    "huggingface_id": "TheBloke/CapybaraHermes-2.5-Mistral-7B-GGUF",
+    "filename": "*q4_0.gguf",
+    "premade_chat_template": true,
+    "bos_string": "<s>",
+    "eos_string": "<|im_end|>",
+    "eos_to_cull": "<|im_end|>"
+  },
+  {
+    "model_name": "CapybaraHermes-2.5-Mistral-7B-GGUF-q5",
+    "backend": "llamacpp",
+    "huggingface_id": "TheBloke/CapybaraHermes-2.5-Mistral-7B-GGUF",
+    "filename": "*q5_0.gguf",
+    "premade_chat_template": true,
+    "bos_string": "<s>",
+    "eos_string": "<|im_end|>",
+    "eos_to_cull": "<|im_end|>"
+  },
+  {
+    "model_name": "CapybaraHermes-2.5-Mistral-7B-GGUF-q5-k-s",
+    "backend": "llamacpp",
+    "huggingface_id": "TheBloke/CapybaraHermes-2.5-Mistral-7B-GGUF",
+    "filename": "*q5_k_s.gguf",
+    "premade_chat_template": true,
+    "bos_string": "<s>",
+    "eos_string": "<|im_end|>",
+    "eos_to_cull": "<|im_end|>"
+  },
+  {
+    "model_name": "EstopianMaid-13B-GGUF-q2-k",
+    "backend": "llamacpp",
+    "huggingface_id": "TheBloke/EstopianMaid-13B-GGUF",
+    "filename": "*q2_k.gguf",
+    "premade_chat_template": false,
+    "custom_chat_template": "{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'].strip() + '\\n\\n' %}{% else %}{% set loop_messages = messages %}{% set system_message = '' %}{% endif %}{% if system_message %}{{ bos_token + system_message }}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if message['role'] == 'user' %}{{bos_token + '### Instruction:\\n' + message['content'].strip() + '\\n\\n' }}{% elif message['role'] == 'assistant' %}{{ '### Response:\\n' + message['content'].strip() + eos_token + '\\n\\n' }}{% endif %}{% if loop.last and message['role'] == 'user' and add_generation_prompt %}{{ '### Response:\\n' }}{% endif %}{% endfor %}",
+    "bos_string": "<s>",
+    "eos_string": "</s>",
+    "eos_to_cull": "</s>"
+  },
+  {
+    "model_name": "EstopianMaid-13B-GGUF-q3-k-s",
+    "backend": "llamacpp",
+    "huggingface_id": "TheBloke/EstopianMaid-13B-GGUF",
+    "filename": "*q3_k_s.gguf",
+    "premade_chat_template": false,
+    "custom_chat_template": "{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'].strip() + '\\n\\n' %}{% else %}{% set loop_messages = messages %}{% set system_message = '' %}{% endif %}{% if system_message %}{{ bos_token + system_message }}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if message['role'] == 'user' %}{{bos_token + '### Instruction:\\n' + message['content'].strip() + '\\n\\n' }}{% elif message['role'] == 'assistant' %}{{ '### Response:\\n' + message['content'].strip() + eos_token + '\\n\\n' }}{% endif %}{% if loop.last and message['role'] == 'user' and add_generation_prompt %}{{ '### Response:\\n' }}{% endif %}{% endfor %}",
+    "bos_string": "<s>",
+    "eos_string": "</s>",
+    "eos_to_cull": "</s>"
+  },
+  {
+    "model_name": "openchat_3.5-GGUF-q5",
+    "backend": "llamacpp",
+    "huggingface_id": "TheBloke/openchat_3.5-GGUF",
+    "filename": "*q5_0.gguf",
+    "premade_chat_template": false,
+    "custom_chat_template": "{{ bos_token }}{% for message in messages %}{{ 'GPT4 Correct ' + message['role'].title() + ': ' + message['content'] + '<|end_of_turn|>'}}{% endfor %}{% if add_generation_prompt %}{{ 'GPT4 Correct Assistant:' }}{% endif %}",
+    "bos_string": "<s>",
+    "eos_string": "<|end_of_turn|>",
+    "eos_to_cull": "<|end_of_turn|>"
   }
 ]
