@@ -31,6 +31,13 @@ def load_imgs(imgs):
         loaded[key_tup] = value
     return loaded
 
+def load_cats(cats):
+    loaded = {}
+    for key, value in cats.items():
+        key_tup = load_nodes([key])[0]
+        loaded[key_tup] = value
+    return loaded
+
 def load_start(start):
     """ changes the starting node from string to a
         tuple of ints """
@@ -49,13 +56,17 @@ def load_instance(instance):
     loaded_nodes = load_nodes(instance['nodes'])
     loaded_edges = load_edges(instance['edges'])
     loaded_imgs = load_imgs(instance['imgs'])
+    loaded_cats = load_cats(instance['cats'])
     loaded_start = load_start(instance['start'])
+    loaded_target = load_start(instance['target'])
     
     return {
         'nodes': loaded_nodes,
         'edges': loaded_edges,
         'imgs': loaded_imgs,
-        'start': loaded_start
+        'start': loaded_start,
+        'cats': loaded_cats,
+        'target': loaded_target
     }
     
 def edge_to_delta(edge):

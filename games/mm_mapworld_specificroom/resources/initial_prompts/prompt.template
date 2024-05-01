@@ -1,3 +1,3 @@
-We are currently in this room <image>. Please help me with the following task. The goal is to find a $GOAL$. In each room I will ask you if we have found our target. If not, I will ask you in what direction we should go. 
+Please help me with the following task. The goal is to find a $GOAL$. Please give your answer in the following format: "{"description": "<room description>", "action": "<action>"}". Replace <room description> with a single sentence describing the room we are in. To move to a neighboring room, replace <action> with "GO: DIRECTION" where DIRECTION can be one of [north, south, east, west]. if the room is a $GOAL$ replace <action> with "DONE" instead.
 Let us start. 
-Is the room you are seeing a $GOAL$? Answer with only "yes" or "no".
+We are now in this room. From here we can go: $INITIAL_DIRECTIONS$. What should we do?

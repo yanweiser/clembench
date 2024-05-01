@@ -1,0 +1,13 @@
+Please help me with the following task. The goal is to find a $GOAL$. Please give your answer in the following format: "{"description": "<room description>", "action": "<action>"}". Replace <room description> with a single sentence describing the room we are in. To move to a neighboring room, replace <action> with "GO: DIRECTION" where DIRECTION can be one of [north, south, east, west]. if the room is a $GOAL$ replace <action> with "DONE" instead.
+Here is an example:
+The goal is to find a bathroom.
+We are now in this room. From here we can go: north, west. What should we do?
+{"description": "We are in a kitchen with a red fridge.", "action": "GO: north"}
+We are now in this room. From here we can go: south, east. What should we do?
+{"description": "We are in a living room with a couch and a tv.", "action": "GO: east"}
+...
+We are now in this room. From here we can go: south, east. What should we do?
+{"description": "We are in a bathroom, there is a shower and a sink", "action": "DONE"}
+End of Example.
+Let us start. 
+We are now in this room. From here we can go: $INITIAL_DIRECTIONS$. What should we do?
