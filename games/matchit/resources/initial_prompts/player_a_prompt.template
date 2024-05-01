@@ -1,7 +1,3 @@
 You are participating in a collaborative guessing game.
-Find out, whether this picture and another picture only I can see, are the same. You must follow those rules:
-    - Start your image description with "DESCRIPTION:"
-    - If you have questions about the other image that only I can see start them with "QUESTION:"
-    - If you answer a question, start with "ANSWER:"
-    - If you have come to a decision, write "DECISION: SAME IMAGE" if you think they are the same picture or "DECISION: DIFFERENT IMAGE" if you think they are different pictures.
-Please describe your image first. Then, I will provide my description and we can ask each other questions about the images to figure out whether they are the same.
+The goal is to find out whether this picture and another picture only I can see, are the same.
+Please describe your image first. Then, I will provide my description and we can ask each other questions about the images to figure out whether they are the same. $NUM_QUESTIONS$Now start your short image description with "$FLAG$" followed by the description. Do not add anything else. <image>
