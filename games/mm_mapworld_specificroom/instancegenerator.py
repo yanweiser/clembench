@@ -3,11 +3,13 @@ import numpy as np
 from maps import AbstractMap
 import os
 import random
+import json
+import networkx as nx
 
 
 # set the name of the game in the script, as you named the directory
 # this name will be used everywhere, including in the table of results
-GAME_NAME = 'mm_mapworld_find_room'
+GAME_NAME = 'mm_mapworld_specificroom'
 NUM_INSTANCES = 3
 GRIDS = {"small": (3,3), "medium": (3,4), "large": (4,4)}
 SIZES = {"small": 4, "medium": 6, "large": 8}
@@ -15,12 +17,16 @@ DISTS = {"on": 0, "close": 1, "medium": 2, "far": 3}
 SEED = 42
 RANDOM_PATH = 'random_test_images'
 IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
+# The dataset annotation is in english, making the language agnostic is going to be more challenging
+MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
+DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "needed_imgs")
+RESPONSE_REGEX = '{"description":\s*".+",(\s|\n)*"action":\s*".+"}'
 MOVE_CONSTRUCTION = "GO: "
-FOUND_REGEX = "(yes|no)"
+FOUND_REGEX = "DONE"
 MOVE_REGEX = "GO:\s*(north|east|south|west)"
 
 
-def create_instances(grid_size = GRIDS['medium'], graph_size = SIZES['medium'], num_instances = NUM_INSTANCES, goal_dist = DISTS["medium"]):
+def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['large'], num_instances = NUM_INSTANCES, goal_dist = DISTS["medium"]):
     instances = []
     np.random.seed(SEED)
     random.seed(SEED)
@@ -28,23 +34,56 @@ def create_instances(grid_size = GRIDS['medium'], graph_size = SIZES['medium'], 
     imgs = np.array([os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))], dtype=object)
     for i in range(num_instances):
         map_images = np.random.choice(imgs, size=graph_size)
-        map = AbstractMap(*grid_size, graph_size)
+        start = None
+        target = None
+        while start is None:
+            map = AbstractMap(*grid_size, graph_size)
+            dists = nx.all_pairs_shortest_path_length(map.G)
+            for node1 in dists:
+                for node2 in dists[node1]:
+                    if dists[node1][node2] == goal_dist:
+                        start = str(node1)
+                        target = str(node2)
         nodes = [str(n) for n in map.G]
         edges = list(map.G.edges())
         rev_edges = [(edge[1], edge[0]) for edge in edges]
         edges.extend(rev_edges)
-        img_ref = {nodes[i]: str(map_images[i]) for i in range(graph_size)}
+        img_ref, cat_ref = assign_images(nodes, target)
         instances.append({
             'nodes': nodes,
             'edges': [str(e) for e in edges],
             'imgs': img_ref,
-            'start': random.choice(nodes),
+            'cats': cat_ref,
+            'start': start,
+            'target': target,
+            'target_cat': cat_ref[target],
+            'dist': goal_dist,
             'use_images': True,
             'reprompt': False,
             'use_loop_warning': True,
             'use_turn_limit_warning': True
         })
     return instances
+
+def assign_images(nodes, target, num_targets = 1):
+    with open(MAPPING_PATH, 'r', encoding='utf-8') as f:
+        mapping = json.load(f)
+    cats = mapping.keys()
+    cats_inside = [cat for cat in cats if 'outdoor' not in cat]
+    target_cat = np.random.choice(cats_inside)
+    cats_without_target = cats_inside.remove(target_cat)
+    target_img = np.random.choice(mapping[target_cat])
+    imgs = {target: os.path.join(DATASET_PATH, target_img)}
+    cat_mapping = {target: target_cat.split("/")[1]}
+    for node in nodes:
+        if node == target:
+            continue
+        node_cat = np.random.choice(cats_without_target)
+        node_img = np.random.choice(mapping[node_cat])
+        imgs[node] = os.path.join(DATASET_PATH, node_img)
+        cat_mapping[node] = node_cat.split("/")[1]
+    return imgs, cat_mapping
+    
 
 def instance_from_args(args, prompts):
     instances = create_instances(
@@ -64,6 +103,15 @@ def instance_from_args(args, prompts):
         instances[i]["loop_warning"] = prompts["loop_warning"]
         
     return instances
+
+def load_base_instances():
+    path = os.path.join("games", "mm_mapworld", "in", "all_instances.json")
+    if not os.path.isfile(path):
+        print(f"No file found at {path}\nBe sure to generate all base game instances first and save them as `all_instances.json`")
+        exit(1)
+    with open(path, "r", encoding='utf-8') as f:
+        instances = json.load(f)
+    return instances
         
         
 
@@ -74,7 +122,7 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
     def on_generate(self):
         prompts = {
             'initial': self.load_template('resources/initial_prompts/prompt.template'),
-            'move': self.load_template('resources/initial_prompts/move.template'),
+            'initial_one_shot': self.load_template('resources/initial_prompts/prompt_one_shot.template'),
             'later_success': self.load_template('resources/later_prompts/successful_move.template'),
             'later_invalid': self.load_template('resources/later_prompts/invalid_move.template'),
             'reprompt_format': self.load_template('resources/reprompts/invalid_format.template'),
@@ -82,15 +130,16 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
         }
         experiments = {
-            # 'random_on': {"dist": "on"},
-            'random_close': {"dist": "close"},
-            # 'random_medium': {"dist": "medium"},
-            # 'random_far': {"dist": "far"},
-            # 'random_on_reprompt': {"dist": "on", "reprompt": True},
-            # 'random_close_reprompt': {"dist": "close", "reprompt": True},
-            # 'random_medium_reprompt': {"dist": "medium", "reprompt": True},
-            # 'random_far_reprompt': {"dist": "far", "reprompt": True},
+            # 'on': {"dist": "on"},
+            'close': {"dist": "close"},
+            # 'medium': {"dist": "medium"},
+            # 'far': {"dist": "far"},
+            # 'on_reprompt': {"dist": "on", "reprompt": True},
+            # 'close_reprompt': {"dist": "close", "reprompt": True},
+            # 'medium_reprompt': {"dist": "medium", "reprompt": True},
+            # 'far_reprompt': {"dist": "far", "reprompt": True},
         }
+        # base_instances = load_base_instances()
 
         for exp in experiments.keys():
              experiment = self.add_experiment(exp)
@@ -101,8 +150,9 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
                  for key, value in inst.items():
                      instance[key] = value
                  instance["move_construction"] = MOVE_CONSTRUCTION
-                 instance["found_regex"] = FOUND_REGEX
+                 instance["done_regex"] = FOUND_REGEX
                  instance["move_regex"] = MOVE_REGEX
+                 instance["reponse_regex"] = RESPONSE_REGEX
                  game_id += 1
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ RANDOM_PATH = 'random_test_images'
 IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
-RESONSE_REGEX = '{"description":\s*".+",(\s|\n)*"action":\s*".+"}'
+RESPONSE_REGEX = '{"description":\s*".+",(\s|\n)*"action":\s*".+"}'
 DONE_REGEX = 'DONE'
 MOVE_REGEX = 'GO:\s*(north|east|west|south)'
 
@@ -104,7 +104,7 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
                      instance[key] = value
                  instance["move_construction"] = MOVE_CONSTRUCTION
                  instance["stop_construction"] = STOP_CONSTRUCTION
-                 instance["response_regex"] = RESONSE_REGEX
+                 instance["response_regex"] = RESPONSE_REGEX
                  instance["done_regex"] = DONE_REGEX
                  instance["move_regex"] = MOVE_REGEX
                  game_id += 1

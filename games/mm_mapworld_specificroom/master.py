@@ -60,11 +60,14 @@ class PathDescriber(Player):
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
         self.start = instance_data["start"]
+        self.cats = instance_data["cats"]
+        self.target = instance_data["target"]
+        self.target_cat = game_instance["target_cat"]
         self.current_room = instance_data["start"]
         self.success_response = game_instance["success_response"]
         self.invalid_response = game_instance["invalid_response"]
-        self.loop_response = game_instance["loop_warning"]
-        self.limit_warning = game_instance["limit_warning"]
+        self.loop_response = game_instance["loop_warning"].replace("$GOAL$", self.target_cat)
+        self.limit_warning = game_instance["limit_warning"].replace("$GOAL$", self.target_cat)
         self.visited_nodes=[self.current_room]
         self.use_loop_warning = game_instance["use_loop_warning"]
         self.use_turn_limit_warning = game_instance["use_turn_limit_warning"]
@@ -146,9 +149,12 @@ class MmMapWorld(DialogueGameMaster):
         self.imgs = instance_data["imgs"]
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
+        self.cats = instance_data["cats"]
+        self.target = instance_data["target"]
+        self.target_cat = game_instance["target_cat"]
         self.start = instance_data["start"]
         self.current_room = instance_data["start"]
-        self.init_prompt = game_instance["initial_prompt"]
+        self.init_prompt = game_instance["initial_prompt"].replace("$GOAL$", self.target_cat)
         self.visited_nodes=[self.current_room]
         
         self.done_regex = re.compile(game_instance["done_regex"])
@@ -160,7 +166,7 @@ class MmMapWorld(DialogueGameMaster):
         self.use_images = game_instance["use_images"]
         
         self.do_reprompt = game_instance["reprompt"]
-        self.reprompt_format = game_instance["reprompt_format"]
+        self.reprompt_format = game_instance["reprompt_format"].replace("$GOAL$", self.target_cat)
 
         self.describer = PathDescriber(CustomResponseModel(), game_instance)
         self.walker = PathWalker(self.player_models[0])
@@ -309,6 +315,11 @@ class MM_MapWorldScorer(GameScorer):
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
         self.start_node = instance_data["start"]
+        self.target = instance_data["target"]
+        self.target_cat = game_instance['target_cat']
+        self.cats = instance_data['cats']
+        self.dist = game_instance['dist']
+        
         
     def adj(self, node):
         return set([ed[1] for ed in self.edges if ed[0] == node])
@@ -437,6 +448,7 @@ class MM_MapWorldScorer(GameScorer):
                     seen.update(self.adj(current))
                     visited.add(current)
                     self.path.append(current)
+        end = self.path[-1]
                 
         # log all the scores
         if aborted: # set all values to NaN if game is aborted
@@ -455,7 +467,7 @@ class MM_MapWorldScorer(GameScorer):
             self.log_episode_score(BENCH_SCORE, np.NaN)
         else: # else set them to their respective values
             self.log_episode_score(METRIC_ABORTED, 0)
-            if self.visited_all(visited, self.nodes):
+            if self.target == end:
                 self.log_episode_score(METRIC_SUCCESS, 1)
                 self.log_episode_score(METRIC_LOSE, 0)
             else:
@@ -466,11 +478,15 @@ class MM_MapWorldScorer(GameScorer):
             self.log_episode_score('invalid_moves', invalid_moves)
             self.log_episode_score('visited', len(visited))
             self.log_episode_score('seen', len(seen))
-            eff = 100*sum(good_move)/max([len(good_move), 1])
+            l = len(self.path)
+            if l == 1:
+                eff = 100
+            else:
+                eff = 100*(1/min(1, l - self.dist))
             self.log_episode_score('effieciency', eff)
-            exp = 100*len(visited)/len(self.nodes)
-            self.log_episode_score('exploration', exp)
-            self.log_episode_score(BENCH_SCORE, (2*exp*eff)/(eff+exp))
+            find = 100*int((self.target == end))
+            self.log_episode_score('finding', find)
+            self.log_episode_score(BENCH_SCORE, (2*find*eff)/(eff+find))
             
         
 
