@@ -36,20 +36,17 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
         with open("games/matchit_ascii/resources/grid_pairs/grids_matchit.json") as file:
             grid_dict = json.load(file)
 
-        prompt_a = self.load_template('resources/prompts/player_a_prompt.template').replace("$FLAG$", FLAGS["description"])
-        prompt_b = self.load_template('resources/prompts/player_b_prompt.template').replace("$FLAG$", FLAGS["description"])
+        initial_prompt = self.load_template('resources/prompts/initial_prompt.template').replace("$FLAG$", FLAGS["description"])
         q_reprompt = self.load_template('resources/prompts/q_reprompt.template').replace("$FLAG$", FLAGS["question"])
         d_reprompt = self.load_template('resources/prompts/d_reprompt.template').replace("$SOL_SAME$", SOL_SAME).replace("$SOL_DIFF$", SOL_DIFF).replace("$FLAG$", FLAGS["decision"])
         a_request = self.load_template('resources/prompts/a_request.template').replace("$FLAG$", FLAGS["answer"])
+        desc_intro = self.load_template('resources/prompts/description_introduction.template')
 
         if INFO_NUM_QUESTIONS:
             sentence_num_questions = self.load_template('resources/prompts/info_num_questions.template').replace("$DEC_TURN$", str(DEC_TURN))
-            prompt_a = prompt_a.replace("$NUM_QUESTIONS$", sentence_num_questions)
-            prompt_b = prompt_b.replace("$NUM_QUESTIONS$", sentence_num_questions)
+            inital_prompt = initial_prompt.replace("$NUM_QUESTIONS$", sentence_num_questions)
         else:
-            prompt_a = prompt_a.replace("$NUM_QUESTIONS$", "")
-            prompt_b = prompt_b.replace("$NUM_QUESTIONS$", "")
-
+            initial_prompt = initial_prompt.replace("$NUM_QUESTIONS$", "")
 
         experiments = {"same_grid": (sams, SOL_SAME), 
                        "similar_grid": (sims, SOL_DIFF), 
@@ -58,11 +55,11 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
         for exp_name in experiments.keys(): 
             experiment =  self.add_experiment(exp_name)
             game_id = 0
-            experiment["prompt_a"] = prompt_a  
-            experiment["prompt_b"] = prompt_b
+            experiment["initial_prompt"] = initial_prompt  
             experiment["q_reprompt"] = q_reprompt
             experiment["d_reprompt"] = d_reprompt
             experiment["a_request"] = a_request
+            experiment["desc_intro"] = desc_intro
             experiment["flags"] = FLAGS
             experiment["solution"] = experiments[exp_name][1]
 

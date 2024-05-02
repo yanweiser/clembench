@@ -50,8 +50,9 @@ class MatchItAscii(DialogueGameMaster):
         self.experiment: str = experiment["name"]
         self.flags: dict[str, str] = experiment["flags"]
         
-        self.prompt_a: str = experiment["prompt_a"] # "This is Prompt A."
-        self.prompt_b: str = experiment["prompt_b"] # "This is Prompt B. Input from A: $DESCRIPTION_A$"
+        self.initial_prompt: str = experiment["initial_prompt"] # "This is Prompt A."
+        #self.prompt_b: str = experiment["prompt_a"] # "This is Prompt B. Input from A: $DESCRIPTION_A$"
+        self.desc_intro: str = experiment["desc_intro"]
         self.q_reprompt: str = experiment["q_reprompt"] # "Reprompt: Now ask a question, starting with \"QUESTION: \""
         self.d_reprompt: str = experiment["d_reprompt"] # "Make a decision." 
         self.a_request: str = experiment["a_request"] #"Start your answer with ANSWER:"
@@ -70,8 +71,8 @@ class MatchItAscii(DialogueGameMaster):
         self.game_instance = game_instance
         self.grid_a: str = game_instance["grid_a"]
         self.grid_b: str = game_instance["grid_b"]
-        self.prompt_a = self.prompt_a.replace("$GRID$", self.grid_a)
-        self.prompt_b = self.prompt_b.replace("$GRID$", self.grid_b)
+        self.prompt_a = self.initial_prompt.replace("$GRID$", self.grid_a)
+        self.prompt_b = self.initial_prompt.replace("$GRID$", self.grid_b)
 
         self.decision_turn: int = game_instance["decision_turn"]
 
@@ -179,16 +180,16 @@ class MatchItAscii(DialogueGameMaster):
         if self.n_turns == 0:
             if player == self.player_a:
                 #add Player A's description to player B's prompt
-                utt_filled = self.prompt_b.replace("$DESCRIPTION_A$", utterance) 
-                self.add_user_message(self.player_b, utt_filled)
+                #utt_filled = self.prompt_b.replace("$DESCRIPTION_A$", utterance) 
+                self.add_user_message(self.player_b, self.prompt_b)
             elif player == self.player_b:
                 if self.player_b.description != "" and self.player_b.question != "":
-                    self.add_user_message(self.player_a, self.player_b.description + "\n" + self.player_b.question + self.a_request)
+                    self.add_user_message(self.player_a, self.desc_intro + self.player_b.description + "\n" + self.player_b.question + self.a_request)
                     self.player_b.question = ""
                 else:
                     logger.info(f"Warning for first turn, Player B DESC = {self.player_b.description}; QUES = {self.player_b.question}")
         # decision turn
-        elif self.n_turns == self.decision_turn and player == self.player_b:
+        elif self.n_turns == self.decision_turn and player == self.player_b and self.answer_counter == 1:
             self.add_user_message(self.player_a, player.answer + "\n" + self.d_reprompt)
         # all other turns
         else:
@@ -229,6 +230,8 @@ class MatchItAscii(DialogueGameMaster):
     def _on_before_reprompt(self, player: Player):
         if self.n_turns == self.decision_turn and player == self.player_b:
             self.add_user_message(player, self.d_reprompt)
+        elif self.n_turns == 0:
+            self.add_user_message(player, self.desc_intro + self.player_a.description + "\n" + self.q_reprompt)
         else:
             self.add_user_message(player, self.q_reprompt)
         
@@ -336,7 +339,7 @@ class MatchItScorer(GameScorer):
                     self.log_episode_score(ms.BENCH_SCORE, 50)  # current decision, may change
 
                 else:   # = success_a and success_b:   
-                    print("has been successful")
+                    #print("has been successful")
                     self.log_episode_score(ms.METRIC_ABORTED, 0)
                     self.log_episode_score(ms.METRIC_SUCCESS, 1)
                     self.log_episode_score(ms.METRIC_LOSE, 0)
