@@ -5,13 +5,13 @@ from typing import Dict
 
 GAME_NAME: str = "matchit_ascii"
 # n instances to be generated
-N: int = 3 # max = len(similar_images.csv) = 161, if not using other image pairs
+N: int = 10 # max = len(similar_grid_1) = 27, if not using other grid pairs
 # paths to image pair tables
 PATH_PAIRS: str = "games/matchit_ascii/resources/grid_pairs/grid-pairs.csv"
 PATH_GRIDS: str = "games/matchit_ascii/resources/grid_pairs/grids_matchit.json"
 
 #how many questions can each player ask?
-DEC_TURN: int = 2
+DEC_TURN: int = 3
 # should the players be informed about the number of questions they can ask?
 INFO_NUM_QUESTIONS: bool = False
 
@@ -30,7 +30,8 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
     def on_generate(self): 
         df = pd.read_csv(PATH_PAIRS, index_col = 0)
         diffs = df[df.category == "different_grid"].sample(n = N, random_state = SEED)
-        sims = df[df.category == "similar_grid"].sample(n = N, random_state = SEED)
+        sims1 = df[df.category == "similar_grid_1"].sample(n = N, random_state = SEED)
+        sims2 = df[df.category == "similar_grid_2"].sample(n = N, random_state = SEED)
         sams = df[df.category == "same_grid"].sample(n = N, random_state = SEED)
 
         with open("games/matchit_ascii/resources/grid_pairs/grids_matchit.json") as file:
@@ -44,12 +45,16 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
 
         if INFO_NUM_QUESTIONS:
             sentence_num_questions = self.load_template('resources/prompts/info_num_questions.template').replace("$DEC_TURN$", str(DEC_TURN))
-            inital_prompt = initial_prompt.replace("$NUM_QUESTIONS$", sentence_num_questions)
+            print("this is the sentence: ", sentence_num_questions)
+            print("$NUM_QUESTIONS$" in initial_prompt)
+            initial_prompt = initial_prompt.replace("$NUM_QUESTIONS$", sentence_num_questions)
+            print("this is the prompt: ", initial_prompt)
         else:
             initial_prompt = initial_prompt.replace("$NUM_QUESTIONS$", "")
 
         experiments = {"same_grid": (sams, SOL_SAME), 
-                       "similar_grid": (sims, SOL_DIFF), 
+                       "similar_grid_1": (sims1, SOL_DIFF), 
+                       "similar_grid_2": (sims2, SOL_DIFF), 
                        "different_grid": (diffs, SOL_DIFF)}
     
         for exp_name in experiments.keys(): 
