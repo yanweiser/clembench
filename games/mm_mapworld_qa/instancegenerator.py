@@ -9,11 +9,12 @@ import networkx as nx
 
 # set the name of the game in the script, as you named the directory
 # this name will be used everywhere, including in the table of results
-GAME_NAME = 'mm_mapworld_specificroom'
+GAME_NAME = 'mm_mapworld_qa'
 NUM_INSTANCES = 10
 GRIDS = {"small": (3,3), "medium": (3,4), "large": (4,4)}
 SIZES = {"small": 4, "medium": 6, "large": 8}
 DISTS = {"on": [0], "close": [1,2], "far": [3,4]}
+AMBIGUITIES = {"none": [(1,1)], "limited": [(2,2), (1,2)], "strong": [(1,3), (2,3), (3,2)]}
 SEED = 42
 RANDOM_PATH = 'random_test_images'
 IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
@@ -26,7 +27,7 @@ FOUND_REGEX = "DONE"
 MOVE_REGEX = "GO:\s*(north|east|south|west)"
 
 
-def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['large'], num_instances = NUM_INSTANCES, goal_dist = DISTS["close"]):
+def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], num_instances = NUM_INSTANCES, goal_dist = DISTS["close"]):
     instances = []
     np.random.seed(SEED)
     random.seed(SEED)
@@ -108,7 +109,7 @@ def instance_from_args(args, prompts):
     return instances      
         
 
-class MmMapWorldInstanceGenerator(GameInstanceGenerator):
+class MmMapWorldQAInstanceGenerator(GameInstanceGenerator):
     def __init__(self):
         # always do this to initialise GameInstanceGenerator
         super().__init__(GAME_NAME)
@@ -144,5 +145,5 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
 
 if __name__ == '__main__':
     # always call this, which will actually generate and save the JSON file
-    MmMapWorldInstanceGenerator().generate()
+    MmMapWorldQAInstanceGenerator().generate()
 

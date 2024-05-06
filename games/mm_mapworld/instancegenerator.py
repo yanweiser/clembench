@@ -19,7 +19,7 @@ DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "nee
 MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
-RESPONSE_REGEX = '{"description":\s*".+",(\s|\n)*"action":\s*".+"}'
+RESPONSE_REGEX = "\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}"
 DONE_REGEX = 'DONE'
 MOVE_REGEX = 'GO:\s*(north|east|west|south)'
 

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import imageio
 import shutil
 
-import games.mm_mapworld_specificroom.utils as utils
+import games.mm_mapworld_qa.utils as utils
 
 import clemgame.metrics as ms
 from backends import Model, CustomResponseModel
@@ -25,7 +25,7 @@ from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC
 
 
 DIRS = ["north", "south", "east", "west"]
-GAME_NAME = 'mm_mapworld_specificroom'
+GAME_NAME = 'mm_mapworld_qa'
 MAX_TURNS = 15
 
 CARDINAL_TO_DELTA = {
@@ -504,7 +504,9 @@ class MM_MapWorldScorer(GameScorer):
             self.log_episode_score('effieciency', eff)
             find = 100*int((self.target == end))
             self.log_episode_score('finding', find)
-            self.log_episode_score(BENCH_SCORE, find)     
+            self.log_episode_score(BENCH_SCORE, find)
+            
+        
 
         
     def store_scores(self, results_root: str, dialogue_pair: str, game_record_dir: str):
