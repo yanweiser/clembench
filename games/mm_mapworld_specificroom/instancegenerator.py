@@ -10,10 +10,10 @@ import networkx as nx
 # set the name of the game in the script, as you named the directory
 # this name will be used everywhere, including in the table of results
 GAME_NAME = 'mm_mapworld_specificroom'
-NUM_INSTANCES = 3
+NUM_INSTANCES = 10
 GRIDS = {"small": (3,3), "medium": (3,4), "large": (4,4)}
 SIZES = {"small": 4, "medium": 6, "large": 8}
-DISTS = {"on": 0, "close": 1, "medium": 2, "far": 3}
+DISTS = {"on": [0], "close": [1,2], "far": [3,4]}
 SEED = 42
 RANDOM_PATH = 'random_test_images'
 IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
@@ -26,22 +26,22 @@ FOUND_REGEX = "DONE"
 MOVE_REGEX = "GO:\s*(north|east|south|west)"
 
 
-def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['large'], num_instances = NUM_INSTANCES, goal_dist = DISTS["medium"]):
+def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['large'], num_instances = NUM_INSTANCES, goal_dist = DISTS["close"]):
     instances = []
     np.random.seed(SEED)
     random.seed(SEED)
     path = os.path.join(IMAGE_PATH, RANDOM_PATH)
     imgs = np.array([os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))], dtype=object)
     for i in range(num_instances):
-        map_images = np.random.choice(imgs, size=graph_size)
+        this_dist = int(np.random.choice(goal_dist))
         start = None
         target = None
         while start is None:
             map = AbstractMap(*grid_size, graph_size)
-            dists = nx.all_pairs_shortest_path_length(map.G)
+            dists = dict(nx.all_pairs_shortest_path_length(map.G))
             for node1 in dists:
                 for node2 in dists[node1]:
-                    if dists[node1][node2] == goal_dist:
+                    if dists[node1][node2] == this_dist:
                         start = str(node1)
                         target = str(node2)
         nodes = [str(n) for n in map.G]
@@ -57,7 +57,7 @@ def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['large'], nu
             'start': start,
             'target': target,
             'target_cat': cat_ref[target],
-            'dist': goal_dist,
+            'dist': this_dist,
             'use_images': True,
             'reprompt': False,
             'use_loop_warning': True,
@@ -71,14 +71,14 @@ def assign_images(nodes, target, num_targets = 1):
     cats = mapping.keys()
     cats_inside = [cat for cat in cats if 'outdoor' not in cat]
     target_cat = np.random.choice(cats_inside)
-    cats_without_target = cats_inside.remove(target_cat)
+    cats_inside.remove(target_cat)
     target_img = np.random.choice(mapping[target_cat])
     imgs = {target: os.path.join(DATASET_PATH, target_img)}
     cat_mapping = {target: target_cat.split("/")[1]}
     for node in nodes:
         if node == target:
             continue
-        node_cat = np.random.choice(cats_without_target)
+        node_cat = np.random.choice(cats_inside)
         node_img = np.random.choice(mapping[node_cat])
         imgs[node] = os.path.join(DATASET_PATH, node_img)
         cat_mapping[node] = node_cat.split("/")[1]
@@ -93,7 +93,10 @@ def instance_from_args(args, prompts):
         num_instances=args.get('num_instances', NUM_INSTANCES)
     )
     for i in range(len(instances)):
-        instances[i]['initial_prompt'] = prompts['initial']
+        if args.get('one_shot', 0):
+            instances[i]['initial_prompt'] = prompts['initial_one_shot']
+        else:
+            instances[i]['initial_prompt'] = prompts['initial']
         instances[i]['success_response'] = prompts['later_success']
         instances[i]['invalid_response'] = prompts['later_invalid']
         if args.get('reprompt', 0):
@@ -102,17 +105,7 @@ def instance_from_args(args, prompts):
         instances[i]["limit_warning"] = prompts["limit_warning"]
         instances[i]["loop_warning"] = prompts["loop_warning"]
         
-    return instances
-
-def load_base_instances():
-    path = os.path.join("games", "mm_mapworld", "in", "all_instances.json")
-    if not os.path.isfile(path):
-        print(f"No file found at {path}\nBe sure to generate all base game instances first and save them as `all_instances.json`")
-        exit(1)
-    with open(path, "r", encoding='utf-8') as f:
-        instances = json.load(f)
-    return instances
-        
+    return instances      
         
 
 class MmMapWorldInstanceGenerator(GameInstanceGenerator):
@@ -130,16 +123,10 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
         }
         experiments = {
-            # 'on': {"dist": "on"},
-            'close': {"dist": "close"},
-            # 'medium': {"dist": "medium"},
-            # 'far': {"dist": "far"},
-            # 'on_reprompt': {"dist": "on", "reprompt": True},
-            # 'close_reprompt': {"dist": "close", "reprompt": True},
-            # 'medium_reprompt': {"dist": "medium", "reprompt": True},
-            # 'far_reprompt': {"dist": "far", "reprompt": True},
+            'on': {"dist": "on", "one_shot": True, "reprompt": True},
+            'close': {"dist": "close", "one_shot": True, "reprompt": True},
+            'far': {"dist": "far", "one_shot": True, "reprompt": True}
         }
-        # base_instances = load_base_instances()
 
         for exp in experiments.keys():
              experiment = self.add_experiment(exp)
@@ -152,7 +139,7 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
                  instance["move_construction"] = MOVE_CONSTRUCTION
                  instance["done_regex"] = FOUND_REGEX
                  instance["move_regex"] = MOVE_REGEX
-                 instance["reponse_regex"] = RESPONSE_REGEX
+                 instance["response_regex"] = RESPONSE_REGEX
                  game_id += 1
 
 if __name__ == '__main__':

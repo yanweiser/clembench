@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import imageio
 import shutil
 
-import games.mm_mapworld.utils as utils
+import games.mm_mapworld_specificroom.utils as utils
 
 import clemgame.metrics as ms
 from backends import Model, CustomResponseModel
@@ -25,7 +25,7 @@ from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC
 
 
 DIRS = ["north", "south", "east", "west"]
-GAME_NAME = 'mm_mapworld'
+GAME_NAME = 'mm_mapworld_specificroom'
 MAX_TURNS = 15
 
 CARDINAL_TO_DELTA = {
@@ -94,7 +94,7 @@ class PathDescriber(Player):
             self.current_room = new_room
 
     def _custom_response(self, messages, turn_idx) -> str:
-        last_move = messages[-1]['content']
+        last_move = json.loads(messages[-1]['content'])['action']
         without_move = last_move.replace('GO:', '')
         words = without_move.strip().split()
         new_dir = words[0]
@@ -108,7 +108,7 @@ class PathDescriber(Player):
             response = self.success_response.replace("$DIRECTIONS$", ", ".join(available_directions))
         if self.detect_loop() and self.use_loop_warning:
             response = self.loop_response + response
-        if turn_idx == (MAX_TURNS - 2) and self.use_turn_limit_warning:
+        if turn_idx == (MAX_TURNS - 6) and self.use_turn_limit_warning:
             response = self.limit_warning + response
         return response
 
@@ -145,6 +145,7 @@ class MmMapWorld(DialogueGameMaster):
         """" sets the information you specify in instances.json """
         self.game_instance = game_instance
         instance_data = utils.load_instance(self.game_instance)
+#         print(instance_data.keys())
         instance_data['initial_prompt'] = game_instance["initial_prompt"]
         self.imgs = instance_data["imgs"]
         self.nodes = instance_data["nodes"]
@@ -157,10 +158,10 @@ class MmMapWorld(DialogueGameMaster):
         self.init_prompt = game_instance["initial_prompt"].replace("$GOAL$", self.target_cat)
         self.visited_nodes=[self.current_room]
         
+        self.response_regex = re.compile(game_instance["response_regex"])
         self.done_regex = re.compile(game_instance["done_regex"])
         self.move_regex = re.compile(game_instance["move_regex"])
         
-        self.done_const = game_instance["stop_construction"]
         self.move_const = game_instance["move_construction"]
         
         self.use_images = game_instance["use_images"]
@@ -193,44 +194,46 @@ class MmMapWorld(DialogueGameMaster):
         return False
     
     def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
-        """
-        Hook
-
-        Decide if a response utterance should be modified. If not simply return the utterance.
-
-        When a modified utterance and a true value is returned, then a 'parse' event is logged.
-
-        :param player: that produced the response
-        :param utterance: to be potentially modified
-        :return: the (modified) utterance and if to log the parse action (default: True)
-        """
         if player == self.walker:
             utterance = utterance.replace("\n", "").strip()
             for word in DIRS:
                 utterance = utterance.replace(word.capitalize(), word)
-            done_hit = re.search(self.done_regex, utterance)
-            if done_hit:
-                utterance = done_hit.group()
-            hit = re.search(self.move_regex, utterance)
-            if hit:
-                utterance = hit.group()
+                utterance = utterance.replace(word.upper(), word)
+            found = re.search(self.response_regex, utterance)
+            if found:
+                utterance = found.group()
         return utterance, True
 
     def _validate_player_response(self, player: Player, answer: str) -> bool:
-        """Check if the utterance conforms to rules (cloudgame specific)."""
-        answer = answer.replace("\n", "").strip()
-        for word in DIRS:
-            answer = answer.replace(word.capitalize(), word)
         if player == self.walker:
+            answer = answer.replace("\n", "").strip()
+            for word in DIRS:
+                answer = answer.replace(word.capitalize(), word)
+                answer = answer.replace(word.upper(), word)
             # in case we abort we set the next move to None
             self.move = None
             # Check if the answer begins with 'MOVE:'
-            done_hit = re.search(self.done_regex, answer)
-            if done_hit:
+            hit = re.search(self.response_regex, answer)
+            if not hit:
+                if self.do_reprompt:
+                    if self.did_reprompt:
+                        self.aborted = True
+                        self.log_to_self("Invalid format", "Game aborted.")
+                        return False
+                    self.need_reprompt = True
+                    self.log_to_self("reprompting", "invalid format")
+                    return True
+                self.aborted = True
+                self.log_to_self("Invalid format", "Game aborted.")
+                return False
+            loaded = json.loads(hit.group())
+            action = loaded["action"]
+            action_hit = re.search(self.done_regex, action)
+            if action_hit:
                 self.stop = True
                 self.log_to_self("DONE", True)
                 return True
-            hit = re.search(self.move_regex, answer)
+            hit = re.search(self.move_regex, action)
             if not hit:
                 if self.do_reprompt:
                     if self.did_reprompt:
@@ -246,7 +249,6 @@ class MmMapWorld(DialogueGameMaster):
             new_dir = hit.group(1)
             self.move = new_dir
             self.log_to_self("Valid format", "Continue")
-       
         return True
     
     def _after_add_player_response(self, player: Player, utterance: str):
@@ -293,11 +295,18 @@ class MmMapWorld(DialogueGameMaster):
 
     ########## Multimodal specific functions:
 
+    def remove_previous_images(self, player: Player):
+        history = self.messages_by_names[player.descriptor]
+        for i in range(len(history)-1):
+            if "image" in history[i]:
+                del history[i]['image']
+
     def add_message(self, player: Player, utterance: str, role: str, image = None):
         if image is None:
             message = {"role": role, "content": utterance}
         else:
             message = {"role": role, "content": utterance, "image": image}
+            self.remove_previous_images(player)
         history = self.messages_by_names[player.descriptor]
         history.append(message)
 
@@ -368,6 +377,13 @@ class MM_MapWorldScorer(GameScorer):
         offset = 0.03
         fig = plt.figure(figsize=(4, 4))
         plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='gray', linewidth = 20, markersize = 25)
+        for node in self.nodes:
+            if node == self.target:
+                plt.plot(node[0], node[1], 'o', color='blue', linewidth = 20, markersize = 25, zorder = 9)
+            elif node == self.start_node:
+                plt.plot(node[0], node[1], 'o', color='green', linewidth = 20, markersize = 25, zorder = 9)
+            else:
+                plt.plot(node[0], node[1], 'o', color='gray', linewidth = 20, markersize = 25, zorder = 9)
         traveled = {}
 
         for edge in self.edges:
@@ -378,6 +394,8 @@ class MM_MapWorldScorer(GameScorer):
 
         last = path[0]
         for i in range(1, len(path)):
+            if path[i] == path[i - 1]:
+                continue
             x1, y1 = last
             x2, y2 = path[i]
             dx = x2 - x1
@@ -482,11 +500,11 @@ class MM_MapWorldScorer(GameScorer):
             if l == 1:
                 eff = 100
             else:
-                eff = 100*(1/min(1, l - self.dist))
+                eff = 100*(1/max(1, l - self.dist))
             self.log_episode_score('effieciency', eff)
             find = 100*int((self.target == end))
             self.log_episode_score('finding', find)
-            self.log_episode_score(BENCH_SCORE, (2*find*eff)/(eff+find))
+            self.log_episode_score(BENCH_SCORE, (eff+find)/2)
             
         
 
