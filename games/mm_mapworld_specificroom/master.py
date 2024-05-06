@@ -26,7 +26,7 @@ from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC
 
 DIRS = ["north", "south", "east", "west"]
 GAME_NAME = 'mm_mapworld_specificroom'
-MAX_TURNS = 15
+MAX_TURNS = 20
 
 CARDINAL_TO_DELTA = {
     'north': (0, 1),

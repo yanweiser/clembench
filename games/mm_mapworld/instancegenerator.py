@@ -9,9 +9,9 @@ import json
 # set the name of the game in the script, as you named the directory
 # this name will be used everywhere, including in the table of results
 GAME_NAME = 'mm_mapworld'
-NUM_INSTANCES = 3
-GRIDS = {"small": (3,3), "medium": (3,4), "large": (4,4)}
-SIZES = {"small": 4, "medium": 6, "large": 8}
+NUM_INSTANCES = 10
+GRIDS = {"small": (4,4), "medium": (4,4), "large": (4,4)}
+SIZES = {"small": 4, "medium": 6, "large": 8} # num_nodes
 SEED = 42
 RANDOM_PATH = 'random_test_images'
 IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
@@ -99,9 +99,11 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
         }
         experiments = {
-            'small': {"size": "small", "reprompt": True, "one_shot": True},
-            'medium': {"size": "medium", "reprompt": True, "one_shot": True},
-            'large': {"size": "large", "reprompt": True, "one_shot": True}
+            'small': {"size": "small", "reprompt": False, "one_shot": True},
+            'medium': {"size": "medium", "reprompt": False, "one_shot": True},
+            'large': {"size": "large", "reprompt": False, "one_shot": True},
+            # medium cycles,
+            # large cycles
         }
 
         for exp in experiments.keys():

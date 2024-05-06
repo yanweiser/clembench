@@ -5,6 +5,7 @@ import os
 import random
 import json
 import networkx as nx
+from copy import deepcopy
 
 
 # set the name of the game in the script, as you named the directory
@@ -27,38 +28,25 @@ FOUND_REGEX = "DONE"
 MOVE_REGEX = "GO:\s*(north|east|south|west)"
 
 
-def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], num_instances = NUM_INSTANCES, goal_dist = DISTS["close"]):
+
+def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], num_instances = NUM_INSTANCES, ambiguity = AMBIGUITIES["limited"]):
     instances = []
     np.random.seed(SEED)
     random.seed(SEED)
-    path = os.path.join(IMAGE_PATH, RANDOM_PATH)
-    imgs = np.array([os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))], dtype=object)
     for i in range(num_instances):
-        this_dist = int(np.random.choice(goal_dist))
-        start = None
-        target = None
-        while start is None:
-            map = AbstractMap(*grid_size, graph_size)
-            dists = dict(nx.all_pairs_shortest_path_length(map.G))
-            for node1 in dists:
-                for node2 in dists[node1]:
-                    if dists[node1][node2] == this_dist:
-                        start = str(node1)
-                        target = str(node2)
+        map = AbstractMap(*grid_size, graph_size)
         nodes = [str(n) for n in map.G]
+        start = np.random.choice(nodes)
         edges = list(map.G.edges())
         rev_edges = [(edge[1], edge[0]) for edge in edges]
         edges.extend(rev_edges)
-        img_ref, cat_ref = assign_images(nodes, target)
+        img_ref, cat_ref = assign_images(nodes, ambiguity)
         instances.append({
             'nodes': nodes,
             'edges': [str(e) for e in edges],
             'imgs': img_ref,
             'cats': cat_ref,
             'start': start,
-            'target': target,
-            'target_cat': cat_ref[target],
-            'dist': this_dist,
             'use_images': True,
             'reprompt': False,
             'use_loop_warning': True,
@@ -66,23 +54,41 @@ def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], n
         })
     return instances
 
-def assign_images(nodes, target, num_targets = 1):
+def assign_images(nodes, ambiguity, num_targets = 1):
+    # load the category file
     with open(MAPPING_PATH, 'r', encoding='utf-8') as f:
         mapping = json.load(f)
     cats = mapping.keys()
+    # outdoor images don't make too much sense for rooms in a house
     cats_inside = [cat for cat in cats if 'outdoor' not in cat]
-    target_cat = np.random.choice(cats_inside)
-    cats_inside.remove(target_cat)
-    target_img = np.random.choice(mapping[target_cat])
-    imgs = {target: os.path.join(DATASET_PATH, target_img)}
-    cat_mapping = {target: target_cat.split("/")[1]}
-    for node in nodes:
-        if node == target:
-            continue
-        node_cat = np.random.choice(cats_inside)
-        node_img = np.random.choice(mapping[node_cat])
-        imgs[node] = os.path.join(DATASET_PATH, node_img)
-        cat_mapping[node] = node_cat.split("/")[1]
+    num_cats_needed = len(nodes) - (ambiguity[0] * max([(ambiguity[1] - 1), 0]))
+    chosen_cats = np.random.choice(cats_inside, size = num_cats_needed)
+    # make sure the decoy category does not exist on the graph
+    for c in chosen_cats:
+        cats_inside.remove(c)
+    # choose it randomly from the rest of the categories
+    decoy = np.random.choice(cats_inside)
+    imgs = {}
+    cat_mapping = {}
+    targets = chosen_cats[:2]
+    targets.append(decoy)
+    l = ambiguity[0] * [ambiguity[1]] 
+    while sum(l) < len(nodes):
+        l.append(1)
+    nodes_per_cat = {chosen_cats[j]: l[j] for j in range(len(chosen_cats))}
+    targets = {
+        chosen_cats[0].split("/")[1]: nodes_per_cat[chosen_cats[0]],
+        chosen_cats[1].split("/")[1]: nodes_per_cat[chosen_cats[1]],
+        decoy.split("/")[1]: 0,
+    }
+    nodes_copy = deepcopy(nodes)
+    for c in chosen_cats:
+        chosen_nodes = list(np.random.choice(nodes_copy, size=nodes_per_cat[c]))
+        chosen_imgs = np.random.choice(mapping[c], size=nodes_per_cat[c])
+        for i in range(len(chosen_nodes)):
+            imgs[chosen_nodes[i]] = os.path.join(DATASET_PATH, chosen_imgs[i])
+            cat_mapping[chosen_nodes[i]] = c.split("/")[1]
+            nodes_copy.remove(chosen_nodes[i])
     return imgs, cat_mapping
     
 
@@ -124,9 +130,9 @@ class MmMapWorldQAInstanceGenerator(GameInstanceGenerator):
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
         }
         experiments = {
-            'on': {"dist": "on", "one_shot": True, "reprompt": True},
-            'close': {"dist": "close", "one_shot": True, "reprompt": True},
-            'far': {"dist": "far", "one_shot": True, "reprompt": True}
+            'on': {"dist": "on", "one_shot": True, "reprompt": False},
+            'close': {"dist": "close", "one_shot": True, "reprompt": False},
+            'far': {"dist": "far", "one_shot": True, "reprompt": False}
         }
 
         for exp in experiments.keys():

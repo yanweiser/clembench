@@ -198,5 +198,3 @@ cython_debug/
 #.idea/
 /venv_hf/
 /venv_llamacpp/
-test.ipynb
-test.ipynb

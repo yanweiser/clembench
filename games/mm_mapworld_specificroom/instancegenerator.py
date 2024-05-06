@@ -123,9 +123,9 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
         }
         experiments = {
-            'on': {"dist": "on", "one_shot": True, "reprompt": True},
-            'close': {"dist": "close", "one_shot": True, "reprompt": True},
-            'far': {"dist": "far", "one_shot": True, "reprompt": True}
+            'on': {"dist": "on", "one_shot": True, "reprompt": False},
+            'close': {"dist": "close", "one_shot": True, "reprompt": False},
+            'far': {"dist": "far", "one_shot": True, "reprompt": False}
         }
 
         for exp in experiments.keys():
