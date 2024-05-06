@@ -3,6 +3,7 @@ import numpy as np
 from maps import AbstractMap
 import os
 import random
+import json
 
 
 # set the name of the game in the script, as you named the directory
@@ -28,7 +29,6 @@ def create_instances(grid_size = GRIDS['medium'], graph_size = SIZES['medium'], 
     np.random.seed(SEED)
     random.seed(SEED)
     for i in range(num_instances):
-        map_images = np.random.choice(imgs, size=graph_size)
         map = AbstractMap(*grid_size, graph_size)
         nodes = [str(n) for n in map.G]
         edges = list(map.G.edges())
@@ -38,7 +38,7 @@ def create_instances(grid_size = GRIDS['medium'], graph_size = SIZES['medium'], 
         instances.append({
             'nodes': nodes,
             'edges': [str(e) for e in edges],
-            'imgs': img_ref,,
+            'imgs': img_ref,
             'cats': cat_ref,
             'start': random.choice(nodes),
             'use_images': True,
@@ -55,6 +55,7 @@ def assign_images(nodes):
     cats_inside = [cat for cat in cats if 'outdoor' not in cat]
     chosen_cats = np.random.choice(cats_inside, size=len(nodes))
     imgs = {}
+    cat_mapping = {}
     for i in range(len(nodes)):
         cat_mapping[nodes[i]] = chosen_cats[i].split("/")[1]
         node_img = np.random.choice(mapping[chosen_cats[i]])

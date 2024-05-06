@@ -1,8 +1,6 @@
 from typing import List, Dict, Tuple, Any
 from retry import retry
 
-
-
 import json
 import openai
 import backends
@@ -22,7 +20,6 @@ class OpenAI(backends.Backend):
         organization = creds[NAME]["organisation"] if "organisation" in creds[NAME] else None
         self.client = openai.OpenAI(api_key=api_key, organization=organization)
 
-
     def list_models(self):
         models = self.client.models.list()
         names = [item.id for item in models.data]
@@ -40,8 +37,8 @@ class OpenAIModel(backends.Model):
         super().__init__(model_spec)
         self.client = client
         self.is_vision = False
-        if self.get_name() in ['gpt-4-vision-preview']:
-            self.is_vision = True
+        if model_spec.has_attr("vision"):
+            self.is_vision = self.model_spec["vision"]
         
     def encode_image(self, image_path):
         if image_path.startswith('http'):
@@ -60,21 +57,24 @@ class OpenAIModel(backends.Model):
                         }
                 ]}
             if "image" in message.keys():
-                url, loaded = self.encode_image(message["image"])
-                if url:
-                    this["content"].append({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": loaded
-                        }
-                    })
-                else:
-                    this["content"].append({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{loaded}"
-                        }
-                    })
+                if isinstance(message['image'], str):
+                    message['image'] = [message['image']]
+                for img in message['image']:
+                    url, loaded = self.encode_image(img)
+                    if url:
+                        this["content"].append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": loaded
+                            }
+                        })
+                    else:
+                        this["content"].append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{loaded}"
+                            }
+                        })
             vision_messages.append(this)
         return vision_messages
 
@@ -91,7 +91,6 @@ class OpenAIModel(backends.Model):
                 ]
         :return: the continuation
         """
-
         if self.is_vision:
             messages = self.apply_vision_format(messages)
         prompt = messages

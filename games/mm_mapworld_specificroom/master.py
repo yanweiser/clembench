@@ -257,7 +257,7 @@ class MmMapWorld(DialogueGameMaster):
                 self.add_user_message(self.describer, utterance)
         if player == self.describer:
             if self.use_images:
-                self.add_user_message(self.walker, utterance, player.imgs[self.current_room])
+                self.add_user_message(self.walker, utterance, image = player.imgs[self.current_room])
             else:
                 self.add_user_message(self.walker, utterance)
                 
@@ -271,7 +271,7 @@ class MmMapWorld(DialogueGameMaster):
         reprompt = self.reprompt_format
         reprompt = reprompt.replace("$DIRECTIONS$", ', '.join(avail))
         if self.use_images:
-            self.add_user_message(self.walker, reprompt, self.imgs[self.current_room])
+            self.add_user_message(self.walker, reprompt, image = self.imgs[self.current_room])
         else:
             self.add_user_message(self.walker, reprompt)
         self.did_reprompt = True
@@ -301,17 +301,18 @@ class MmMapWorld(DialogueGameMaster):
             if "image" in history[i]:
                 del history[i]['image']
 
-    def add_message(self, player: Player, utterance: str, role: str, image = None):
-        if image is None:
-            message = {"role": role, "content": utterance}
-        else:
-            message = {"role": role, "content": utterance, "image": image}
-            self.remove_previous_images(player)
-        history = self.messages_by_names[player.descriptor]
-        history.append(message)
+#     def add_message(self, player: Player, utterance: str, role: str, image = None):
+#         if image is None:
+#             message = {"role": role, "content": utterance}
+#         else:
+#             message = {"role": role, "content": utterance, "image": image}
+#             self.remove_previous_images(player)
+#         history = self.messages_by_names[player.descriptor]
+#         history.append(message)
 
-    def add_user_message(self, player: Player, utterance: str, image = None):
-        self.add_message(player, utterance, role="user", image= image)
+    def add_user_message(self, player: Player, utterance: str, **kwargs):
+        self.remove_previous_images(player)
+        self.add_message(player, utterance, role="user", **kwargs)
         
         
     ####### scoring      
