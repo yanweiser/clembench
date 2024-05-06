@@ -30,8 +30,6 @@ def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['large'], nu
     instances = []
     np.random.seed(SEED)
     random.seed(SEED)
-    path = os.path.join(IMAGE_PATH, RANDOM_PATH)
-    imgs = np.array([os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))], dtype=object)
     for i in range(num_instances):
         this_dist = int(np.random.choice(goal_dist))
         start = None
