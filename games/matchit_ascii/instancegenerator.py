@@ -5,13 +5,13 @@ from typing import Dict
 
 GAME_NAME: str = "matchit_ascii"
 # n instances to be generated
-N: int = 3 # max = len(similar_images.csv) = 161, if not using other image pairs
+N: int = 10 # max = len(similar_grid_1) = 27, if not using other grid pairs
 # paths to image pair tables
 PATH_PAIRS: str = "games/matchit_ascii/resources/grid_pairs/grid-pairs.csv"
 PATH_GRIDS: str = "games/matchit_ascii/resources/grid_pairs/grids_matchit.json"
 
 #how many questions can each player ask?
-DEC_TURN: int = 2
+DEC_TURN: int = 3
 # should the players be informed about the number of questions they can ask?
 INFO_NUM_QUESTIONS: bool = False
 
@@ -30,39 +30,41 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
     def on_generate(self): 
         df = pd.read_csv(PATH_PAIRS, index_col = 0)
         diffs = df[df.category == "different_grid"].sample(n = N, random_state = SEED)
-        sims = df[df.category == "similar_grid"].sample(n = N, random_state = SEED)
+        sims1 = df[df.category == "similar_grid_1"].sample(n = N, random_state = SEED)
+        sims2 = df[df.category == "similar_grid_2"].sample(n = N, random_state = SEED)
         sams = df[df.category == "same_grid"].sample(n = N, random_state = SEED)
 
         with open("games/matchit_ascii/resources/grid_pairs/grids_matchit.json") as file:
             grid_dict = json.load(file)
 
-        prompt_a = self.load_template('resources/prompts/player_a_prompt.template').replace("$FLAG$", FLAGS["description"])
-        prompt_b = self.load_template('resources/prompts/player_b_prompt.template').replace("$FLAG$", FLAGS["description"])
+        initial_prompt = self.load_template('resources/prompts/initial_prompt.template').replace("$FLAG$", FLAGS["description"])
         q_reprompt = self.load_template('resources/prompts/q_reprompt.template').replace("$FLAG$", FLAGS["question"])
         d_reprompt = self.load_template('resources/prompts/d_reprompt.template').replace("$SOL_SAME$", SOL_SAME).replace("$SOL_DIFF$", SOL_DIFF).replace("$FLAG$", FLAGS["decision"])
         a_request = self.load_template('resources/prompts/a_request.template').replace("$FLAG$", FLAGS["answer"])
+        desc_intro = self.load_template('resources/prompts/description_introduction.template')
 
         if INFO_NUM_QUESTIONS:
             sentence_num_questions = self.load_template('resources/prompts/info_num_questions.template').replace("$DEC_TURN$", str(DEC_TURN))
-            prompt_a = prompt_a.replace("$NUM_QUESTIONS$", sentence_num_questions)
-            prompt_b = prompt_b.replace("$NUM_QUESTIONS$", sentence_num_questions)
+            print("this is the sentence: ", sentence_num_questions)
+            print("$NUM_QUESTIONS$" in initial_prompt)
+            initial_prompt = initial_prompt.replace("$NUM_QUESTIONS$", sentence_num_questions)
+            print("this is the prompt: ", initial_prompt)
         else:
-            prompt_a = prompt_a.replace("$NUM_QUESTIONS$", "")
-            prompt_b = prompt_b.replace("$NUM_QUESTIONS$", "")
-
+            initial_prompt = initial_prompt.replace("$NUM_QUESTIONS$", "")
 
         experiments = {"same_grid": (sams, SOL_SAME), 
-                       "similar_grid": (sims, SOL_DIFF), 
+                       "similar_grid_1": (sims1, SOL_DIFF), 
+                       "similar_grid_2": (sims2, SOL_DIFF), 
                        "different_grid": (diffs, SOL_DIFF)}
     
         for exp_name in experiments.keys(): 
             experiment =  self.add_experiment(exp_name)
             game_id = 0
-            experiment["prompt_a"] = prompt_a  
-            experiment["prompt_b"] = prompt_b
+            experiment["initial_prompt"] = initial_prompt  
             experiment["q_reprompt"] = q_reprompt
             experiment["d_reprompt"] = d_reprompt
             experiment["a_request"] = a_request
+            experiment["desc_intro"] = desc_intro
             experiment["flags"] = FLAGS
             experiment["solution"] = experiments[exp_name][1]
 
