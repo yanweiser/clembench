@@ -26,6 +26,7 @@ RESPONSE_REGEX = "\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"
 MOVE_CONSTRUCTION = "GO: "
 FOUND_REGEX = "DONE"
 MOVE_REGEX = "GO:\s*(north|east|south|west)"
+QA_REGEX = "ANSWER:\s*\d+"
 
 
 
@@ -96,7 +97,7 @@ def instance_from_args(args, prompts):
     instances = create_instances(
         grid_size=GRIDS[args.get('size', 'large')],
         graph_size=SIZES[args.get('size', 'large')],
-        goal_dist=DISTS[args.get('dist', 'medium')],
+        ambiguity=AMBIGUITIES[args.get('ambiguity', 'limited')],
         num_instances=args.get('num_instances', NUM_INSTANCES)
     )
     for i in range(len(instances)):
@@ -111,6 +112,8 @@ def instance_from_args(args, prompts):
         instances[i]["reprompt_format"] = prompts["reprompt_format"]
         instances[i]["limit_warning"] = prompts["limit_warning"]
         instances[i]["loop_warning"] = prompts["loop_warning"]
+        instances[i]["qa_init"] = prompts["qa_init"]
+        instances[i]["qa_question"] = prompts["qa_question"]
         
     return instances      
         
@@ -128,11 +131,13 @@ class MmMapWorldQAInstanceGenerator(GameInstanceGenerator):
             'reprompt_format': self.load_template('resources/reprompts/invalid_format.template'),
             'limit_warning': self.load_template('resources/later_prompts/turn_limit.template'),
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
+            'init_qa': self.load_template('resources/qa_prompts/init.template'),
+            'question_qa': self.load_template('resources/qa_prompts/question.template'),
         }
         experiments = {
-            'on': {"dist": "on", "one_shot": True, "reprompt": False},
-            'close': {"dist": "close", "one_shot": True, "reprompt": False},
-            'far': {"dist": "far", "one_shot": True, "reprompt": False}
+            'none': {"ambiguity": "none", "one_shot": True, "reprompt": False},
+            'limited': {"ambiguity": "limited", "one_shot": True, "reprompt": False},
+            'strong': {"ambiguity": "strong", "one_shot": True, "reprompt": False}
         }
 
         for exp in experiments.keys():
@@ -147,6 +152,7 @@ class MmMapWorldQAInstanceGenerator(GameInstanceGenerator):
                  instance["done_regex"] = FOUND_REGEX
                  instance["move_regex"] = MOVE_REGEX
                  instance["response_regex"] = RESPONSE_REGEX
+                 instance["qa_regex"] = QA_REGEX
                  game_id += 1
 
 if __name__ == '__main__':

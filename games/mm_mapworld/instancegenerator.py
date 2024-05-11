@@ -1,5 +1,6 @@
 from clemgame.clemgame import GameInstanceGenerator
 import numpy as np
+import networkx as nx
 from maps import AbstractMap
 import os
 import random
@@ -13,10 +14,15 @@ NUM_INSTANCES = 10
 GRIDS = {"small": (4,4), "medium": (4,4), "large": (4,4)}
 SIZES = {"small": 4, "medium": 6, "large": 8} # num_nodes
 SEED = 42
+CAPTIONS = True
 RANDOM_PATH = 'random_test_images'
 IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
-DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "needed_imgs")
-MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
+if CAPTIONS:
+    DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k_reduced", "ade_imgs")
+    MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k_reduced", "cats.json")
+else:
+    DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "needed_imgs")
+    MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
 RESPONSE_REGEX = "\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}"
@@ -24,12 +30,29 @@ DONE_REGEX = 'DONE'
 MOVE_REGEX = 'GO:\s*(north|east|west|south)'
 
 
-def create_instances(grid_size = GRIDS['medium'], graph_size = SIZES['medium'], num_instances = NUM_INSTANCES):
+
+def create_instances(grid_size = GRIDS['medium'], graph_size = SIZES['medium'], num_instances = NUM_INSTANCES, cycle = False):
     instances = []
     np.random.seed(SEED)
     random.seed(SEED)
     for i in range(num_instances):
-        map = AbstractMap(*grid_size, graph_size)
+        j = 0
+        while j < 10000:
+            map = AbstractMap(*grid_size, graph_size)
+            j += 1
+            try:
+                c = nx.find_cycle(map.G)
+                if cycle:
+                    break  
+                else: 
+                    continue
+            except nx.NetworkXNoCycle:
+                if cycle:
+                    continue
+                else:
+                    break
+        if j == 1000:   
+            print("could not find an appropriate graph with cycles = ", cycle)     
         nodes = [str(n) for n in map.G]
         edges = list(map.G.edges())
         rev_edges = [(edge[1], edge[0]) for edge in edges]
@@ -57,16 +80,20 @@ def assign_images(nodes):
     imgs = {}
     cat_mapping = {}
     for i in range(len(nodes)):
-        cat_mapping[nodes[i]] = chosen_cats[i].split("/")[1]
+        if CAPTIONS:
+            cat_mapping[nodes[i]] = chosen_cats[i]
+        else:
+            cat_mapping[nodes[i]] = chosen_cats[i].split("/")[1]
         node_img = np.random.choice(mapping[chosen_cats[i]])
         imgs[nodes[i]] = os.path.join(DATASET_PATH, node_img)
     return imgs, cat_mapping
 
 def instance_from_args(args, prompts):
     instances = create_instances(
-        grid_size=GRIDS[args['size']],
-        graph_size=SIZES[args['size']],
-        num_instances=NUM_INSTANCES
+        grid_size=GRIDS[args.get('size', 'large')],
+        graph_size=SIZES[args.get('size', 'large')],
+        num_instances=args.get('num_instances', NUM_INSTANCES),
+        cycle=args.get('cycle', False)
     )
     for i in range(len(instances)):
         if args.get('one_shot', 0):
@@ -102,8 +129,8 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
             'small': {"size": "small", "reprompt": False, "one_shot": True},
             'medium': {"size": "medium", "reprompt": False, "one_shot": True},
             'large': {"size": "large", "reprompt": False, "one_shot": True},
-            # medium cycles,
-            # large cycles
+            'medium_cycle': {"size": "medium", "reprompt": False, "one_shot": True, "cycle": True},
+            'large_cycle': {"size": "large", "reprompt": False, "one_shot": True, "cycle": True},
         }
 
         for exp in experiments.keys():

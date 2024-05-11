@@ -58,6 +58,7 @@ class MatchItAscii(DialogueGameMaster):
         self.a_request: str = experiment["a_request"] #"Start your answer with ANSWER:"
 
         self.solution: str = experiment["solution"]
+        self.wrong_solution: str = experiment["wrong_solution"]
         
         self.final_decision: bool = False
         self.success_a: bool = True
@@ -129,9 +130,13 @@ class MatchItAscii(DialogueGameMaster):
                     if utterance.lower().strip(".\n") == (self.flags["decision"] + " " + self.solution).lower():
                         player.success = True
                         self.log_to_self(f"Decision Player {player.role}", "success")
-                    else:
+                    elif utterance.lower().strip(".\n") == (self.flags["decision"] + " " + self.wrong_solution).lower():
                         player.success = False
                         self.log_to_self(f"Decision Player {player.role}", "loss")
+                    else:
+                        self.log_to_self("invalid content", "abort, wrong message content.")
+                        self.aborted = True
+                        return False
                     return True
                 else:
                     return False
@@ -144,9 +149,11 @@ class MatchItAscii(DialogueGameMaster):
                 if utterance.lower().strip(".\n") == (self.flags["decision"] + " " + self.solution).lower():
                         player.success = True
                         self.log_to_self(f"Decision Player {player.role}", "success")
-                else:
+                elif utterance.lower().strip(".\n") == (self.flags["decision"] + " " + self.wrong_solution).lower():
                     player.success = False
                     self.log_to_self(f"Decision Player {player.role}", "loss")
+                else: 
+                    return False
                 return True
                 
         # all other turns

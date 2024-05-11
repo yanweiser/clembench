@@ -226,7 +226,12 @@ class MmMapWorld(DialogueGameMaster):
                 self.aborted = True
                 self.log_to_self("Invalid format", "Game aborted.")
                 return False
-            action = hit.group(2)
+            try:
+                action = json.loads(hit.group())['action']
+            except json.decoder.JSONDecodeError:
+                self.aborted = True
+                self.log_to_self("JSON decode error", "Game aborted.")
+                return False
             action_hit = re.search(self.done_regex, action)
             if action_hit:
                 self.stop = True
