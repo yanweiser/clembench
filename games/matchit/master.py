@@ -38,7 +38,7 @@ class MatchItPlayer(Player):
         elif "QUESTION" in last_message:
             return f"ANSWER: from Player {self.role}"
         elif "decision" in last_message:
-            return "DECISION: Different image."
+            return "DECISION: Different."
         else: 
             return "ANSWER: How did we land here? This is the else in the mock answers."
 
@@ -58,6 +58,7 @@ class MatchIt(DialogueGameMaster):
         self.a_request: str = experiment["a_request"] #"Start your answer with ANSWER:"
 
         self.solution: str = experiment["solution"]
+        self.wrong_solution: str = experiment["wrong_solution"]
         
         self.final_decision: bool = False
         self.success_a: bool = True
@@ -85,7 +86,7 @@ class MatchIt(DialogueGameMaster):
 
     def _on_before_game(self):
         # add prompt to Player A message history
-        self.add_user_message(self.player_a, self.initial_prompt, image = self.image_a)
+        self.add_user_message(self.player_a, self.initial_prompt, image = [self.image_a])
         logger.info("Added Prompt A")
 
 
@@ -129,9 +130,13 @@ class MatchIt(DialogueGameMaster):
                     if utterance.lower().strip(".\n") == (self.flags["decision"] + " " + self.solution).lower():
                         player.success = True
                         self.log_to_self(f"Decision Player {player.role}", "success")
-                    else:
+                    elif utterance.lower().strip(".\n") == (self.flags["decision"] + " " + self.wrong_solution).lower():
                         player.success = False
                         self.log_to_self(f"Decision Player {player.role}", "loss")
+                    else:
+                        self.log_to_self("invalid content", "abort, too much content.")
+                        self.aborted = True
+                        return False
                     return True
                 else:
                     return False
@@ -144,9 +149,11 @@ class MatchIt(DialogueGameMaster):
                 if utterance.lower().strip(".\n") == (self.flags["decision"] + " " + self.solution).lower():
                         player.success = True
                         self.log_to_self(f"Decision Player {player.role}", "success")
-                else:
+                elif utterance.lower().strip(".\n") == (self.flags["decision"] + " " + self.wrong_solution).lower():
                     player.success = False
                     self.log_to_self(f"Decision Player {player.role}", "loss")
+                else: 
+                    return False
                 return True
                 
         # all other turns
@@ -181,7 +188,7 @@ class MatchIt(DialogueGameMaster):
             if player == self.player_a:
                 #add Player A's description to player B's prompt
                 #utt_filled = self.prompt_b.replace("$DESCRIPTION_A$", utterance) 
-                self.add_user_message(self.player_b, self.initial_prompt, image = self.image_b)
+                self.add_user_message(self.player_b, self.initial_prompt, image = [self.image_b])
             elif player == self.player_b:
                 if self.player_b.description != "" and self.player_b.question != "":
                     self.add_user_message(self.player_a, self.desc_intro + self.player_b.description + "\n" + self.player_b.question + self.a_request)

@@ -67,6 +67,13 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
             experiment["desc_intro"] = desc_intro
             experiment["flags"] = FLAGS
             experiment["solution"] = experiments[exp_name][1]
+            if experiment["solution"] == SOL_SAME:
+                experiment["wrong_solution"] = SOL_DIFF
+                print("wrobf sol")
+            else:
+                experiment["wrong_solution"] = SOL_SAME
+                print("hi")
+ 
 
 
             for index, row in experiments[exp_name][0].iterrows():
