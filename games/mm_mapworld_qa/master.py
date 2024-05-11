@@ -226,7 +226,13 @@ class MmMapWorld(DialogueGameMaster):
                 self.aborted = True
                 self.log_to_self("Invalid format", "Game aborted.")
                 return False
-            action = hit.group(2)
+            # the parsed utterance should be valid json, if not we abort
+            try:
+                action = json.loads(hit.group())['action']
+            except json.decoder.JSONDecodeError:
+                self.aborted = True
+                self.log_to_self("JSON decode error", "Game aborted.")
+                return False
             action_hit = re.search(self.done_regex, action)
             if action_hit:
                 self.stop = True
@@ -300,14 +306,14 @@ class MmMapWorld(DialogueGameMaster):
             if "image" in history[i]:
                 del history[i]['image']
 
-#     def add_message(self, player: Player, utterance: str, role: str, image = None):
-#         if image is None:
-#             message = {"role": role, "content": utterance}
-#         else:
-#             message = {"role": role, "content": utterance, "image": image}
-#             self.remove_previous_images(player)
-#         history = self.messages_by_names[player.descriptor]
-#         history.append(message)
+    def add_message(self, player: Player, utterance: str, role: str, image = None):
+        if image is None:
+            message = {"role": role, "content": utterance}
+        else:
+            message = {"role": role, "content": utterance, "image": image}
+            # self.remove_previous_images(player)
+        history = self.messages_by_names[player.descriptor]
+        history.append(message)
 
     def add_user_message(self, player: Player, utterance: str, **kwargs):
         self.remove_previous_images(player)
