@@ -69,10 +69,8 @@ class MatchItInstanceGenerator(GameInstanceGenerator):
             experiment["solution"] = experiments[exp_name][1]
             if experiment["solution"] == SOL_SAME:
                 experiment["wrong_solution"] = SOL_DIFF
-                print("wrobf sol")
             else:
                 experiment["wrong_solution"] = SOL_SAME
-                print("hi")
  
 
 

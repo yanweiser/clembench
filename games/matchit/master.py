@@ -38,7 +38,7 @@ class MatchItPlayer(Player):
         elif "QUESTION" in last_message:
             return f"ANSWER: from Player {self.role}"
         elif "decision" in last_message:
-            return "DECISION: Different."
+            return "DECISION: Different images."
         else: 
             return "ANSWER: How did we land here? This is the else in the mock answers."
 
@@ -134,7 +134,7 @@ class MatchIt(DialogueGameMaster):
                         player.success = False
                         self.log_to_self(f"Decision Player {player.role}", "loss")
                     else:
-                        self.log_to_self("invalid content", "abort, too much content.")
+                        self.log_to_self("invalid content", "abort, wrong message content.")
                         self.aborted = True
                         return False
                     return True
