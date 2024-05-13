@@ -85,7 +85,7 @@ def assign_images(nodes):
         else:
             cat_mapping[nodes[i]] = chosen_cats[i].split("/")[1]
         node_img = np.random.choice(mapping[chosen_cats[i]])
-        imgs[nodes[i]] = os.path.join(DATASET_PATH, node_img)
+        imgs[nodes[i]] = os.path.join(DATASET_PATH, chosen_cats[i], node_img)
     return imgs, cat_mapping
 
 def instance_from_args(args, prompts):
