@@ -41,7 +41,7 @@ def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], n
         edges = list(map.G.edges())
         rev_edges = [(edge[1], edge[0]) for edge in edges]
         edges.extend(rev_edges)
-        img_ref, cat_ref = assign_images(nodes, ambiguity)
+        img_ref, cat_ref, questions = assign_images(nodes, ambiguity)
         instances.append({
             'nodes': nodes,
             'edges': [str(e) for e in edges],
@@ -51,7 +51,8 @@ def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], n
             'use_images': True,
             'reprompt': False,
             'use_loop_warning': True,
-            'use_turn_limit_warning': True
+            'use_turn_limit_warning': True,
+            'questions': questions
         })
     return instances
 
@@ -82,6 +83,9 @@ def assign_images(nodes, ambiguity, num_targets = 1):
         chosen_cats[1].split("/")[1]: nodes_per_cat[chosen_cats[1]],
         decoy.split("/")[1]: 0,
     }
+    questions = []
+    for target in targets:
+        questions.append({"q": f"How many different {target.replace('_', ' ')}(s) did we encounter?", "a": str(targets[target])})
     nodes_copy = deepcopy(nodes)
     for c in chosen_cats:
         chosen_nodes = list(np.random.choice(nodes_copy, size=nodes_per_cat[c]))
@@ -90,7 +94,7 @@ def assign_images(nodes, ambiguity, num_targets = 1):
             imgs[chosen_nodes[i]] = os.path.join(DATASET_PATH, chosen_imgs[i])
             cat_mapping[chosen_nodes[i]] = c.split("/")[1]
             nodes_copy.remove(chosen_nodes[i])
-    return imgs, cat_mapping
+    return imgs, cat_mapping, questions
     
 
 def instance_from_args(args, prompts):
@@ -113,7 +117,6 @@ def instance_from_args(args, prompts):
         instances[i]["limit_warning"] = prompts["limit_warning"]
         instances[i]["loop_warning"] = prompts["loop_warning"]
         instances[i]["qa_init"] = prompts["qa_init"]
-        instances[i]["qa_question"] = prompts["qa_question"]
         
     return instances      
         

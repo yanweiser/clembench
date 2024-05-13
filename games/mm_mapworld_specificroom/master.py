@@ -183,6 +183,13 @@ class MmMapWorld(DialogueGameMaster):
             self.add_user_message(self.walker, prompt, image = initial_image)
         else:
             self.add_user_message(self.walker, prompt)
+            
+    def _on_before_turn(self, turn_idx: int):
+        value = {
+            "path": self.imgs[self.current_room],
+            "cat": self.cats[self.current_room]
+        }
+        self.log_to_self("room_image", json.dumps(value))
  
     def _does_game_proceed(self):
         if not self.aborted and not self.stop and self.current_turn < MAX_TURNS:
@@ -391,11 +398,9 @@ class MM_MapWorldScorer(GameScorer):
                 plt.plot(node[0], node[1], 'o', color='gray', linewidth = 20, markersize = 25, zorder = 9)
         traveled = {}
 
-        for edge in self.edges:
-            x1, y1 = edge[0]  # Get coordinates of one endpoint
-            x2, y2 = edge[1]  # Get coordinates of the other endpoint  
-            plt.plot([x1, x2], [y1, y2], color='gray', linestyle='--')
-            traveled[((x1, y1), (x2, y2))] = 0
+        for node in self.nodes:
+            traveled[node] = 0
+        traveled[self.start_node] += 1
 
         last = path[0]
         for i in range(1, len(path)):
@@ -405,9 +410,8 @@ class MM_MapWorldScorer(GameScorer):
             x2, y2 = path[i]
             dx = x2 - x1
             dy = y2 - y1
-            t = traveled[(path[i], path[i - 1])]
-            traveled[(path[i], path[i - 1])] += 1
-            traveled[(path[i - 1], path[i])] += 1
+            t = traveled[path[i]]
+            traveled[path[i]] += 1
             plt.arrow(x1, 
                       y1, 
                       dx + t * offset, 
