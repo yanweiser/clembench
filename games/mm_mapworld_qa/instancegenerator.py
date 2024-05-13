@@ -41,7 +41,9 @@ def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], n
         edges = list(map.G.edges())
         rev_edges = [(edge[1], edge[0]) for edge in edges]
         edges.extend(rev_edges)
-        img_ref, cat_ref, questions = assign_images(nodes, ambiguity)
+        index = np.random.randint(len(ambiguity))
+        this_ambiguity = ambiguity[index]
+        img_ref, cat_ref, questions = assign_images(nodes, this_ambiguity)
         instances.append({
             'nodes': nodes,
             'edges': [str(e) for e in edges],
@@ -52,7 +54,8 @@ def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], n
             'reprompt': False,
             'use_loop_warning': True,
             'use_turn_limit_warning': True,
-            'questions': questions
+            'questions': questions,
+            'ambiguity': this_ambiguity
         })
     return instances
 
@@ -63,11 +66,12 @@ def assign_images(nodes, ambiguity, num_targets = 1):
     cats = mapping.keys()
     # outdoor images don't make too much sense for rooms in a house
     cats_inside = [cat for cat in cats if 'outdoor' not in cat]
-    num_cats_needed = len(nodes) - (ambiguity[0] * max([(ambiguity[1] - 1), 0]))
-    chosen_cats = np.random.choice(cats_inside, size = num_cats_needed)
+    num_cats_needed = len(nodes) - (ambiguity[0] * (ambiguity[1] - 1))
+    chosen_cats = np.random.choice(cats_inside, size = num_cats_needed, replace = False)
     # make sure the decoy category does not exist on the graph
     for c in chosen_cats:
         cats_inside.remove(c)
+    chosen_cats = list(chosen_cats)
     # choose it randomly from the rest of the categories
     decoy = np.random.choice(cats_inside)
     imgs = {}
@@ -88,7 +92,7 @@ def assign_images(nodes, ambiguity, num_targets = 1):
         questions.append({"q": f"How many different {target.replace('_', ' ')}(s) did we encounter?", "a": str(targets[target])})
     nodes_copy = deepcopy(nodes)
     for c in chosen_cats:
-        chosen_nodes = list(np.random.choice(nodes_copy, size=nodes_per_cat[c]))
+        chosen_nodes = list(np.random.choice(nodes_copy, size=nodes_per_cat[c], replace = False))
         chosen_imgs = np.random.choice(mapping[c], size=nodes_per_cat[c])
         for i in range(len(chosen_nodes)):
             imgs[chosen_nodes[i]] = os.path.join(DATASET_PATH, chosen_imgs[i])
@@ -116,7 +120,7 @@ def instance_from_args(args, prompts):
         instances[i]["reprompt_format"] = prompts["reprompt_format"]
         instances[i]["limit_warning"] = prompts["limit_warning"]
         instances[i]["loop_warning"] = prompts["loop_warning"]
-        instances[i]["qa_init"] = prompts["qa_init"]
+        instances[i]["qa_init"] = prompts["init_qa"]
         
     return instances      
         
