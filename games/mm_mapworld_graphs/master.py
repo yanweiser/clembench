@@ -5,27 +5,21 @@ import os
 import json
 from queue import Queue
 from copy import deepcopy
-from time import sleep
 import numpy as np
 import matplotlib.pyplot as plt
 import imageio
 import shutil
 
-import games.mm_mapworld.utils as utils
+import games.mm_mapworld_graphs.utils as utils
 
-import clemgame.metrics as ms
 from backends import Model, CustomResponseModel
 from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster, GameScorer
-from clemgame import get_logger
 from clemgame.clemgame import Player
-
-from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC_REQUEST_COUNT, \
-    METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_COUNT_PARSED, METRIC_REQUEST_SUCCESS, BENCH_SCORE, \
-        BENCH_SCORE
+from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE
 
 
 DIRS = ["north", "south", "east", "west"]
-GAME_NAME = 'mm_mapworld'
+GAME_NAME = 'mm_mapworld_graphs'
 MAX_TURNS = 20
 
 CARDINAL_TO_DELTA = {
@@ -69,6 +63,8 @@ class PathDescriber(Player):
         self.use_loop_warning = game_instance["use_loop_warning"]
         self.use_turn_limit_warning = game_instance["use_turn_limit_warning"]
         
+        self.invalid_direction = False
+        
     def get_available_moves(self, node):
         return [edge for edge in self.edges if node == edge[0]]
     
@@ -91,15 +87,8 @@ class PathDescriber(Player):
             self.current_room = new_room
 
     def _custom_response(self, messages, turn_idx) -> str:
-        last_move = json.loads(messages[-1]['content'])['action']
-        without_move = last_move.replace('GO:', '')
-        words = without_move.strip().split()
-        new_dir = words[0]
-        old_room = self.current_room
-        self.cardinal_room_change(new_dir)
-        invalid_direction = old_room == self.current_room
         available_directions = self.get_available_directions(self.current_room)
-        if invalid_direction:
+        if self.invalid_direction:
             response = self.invalid_response.replace("$DIRECTIONS$", ", ".join(available_directions))
         else:
             response = self.success_response.replace("$DIRECTIONS$", ", ".join(available_directions))
@@ -253,6 +242,13 @@ class MmMapWorld(DialogueGameMaster):
                 return False
             new_dir = hit.group(1)
             self.move = new_dir
+            old_room = self.current_room
+            self.cardinal_room_change(new_dir)
+            self.describer.cardinal_room_change(new_dir)
+            self.describer.invalid_direction = old_room == self.current_room
+            self.visited_nodes.append(self.current_room)
+            self.describer.visited_nodes.append(self.current_room)
+            self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
             self.log_to_self("Valid format", "Continue")
         return True
     
@@ -262,7 +258,7 @@ class MmMapWorld(DialogueGameMaster):
                 self.add_user_message(self.describer, utterance)
         if player == self.describer:
             if self.use_images:
-                self.add_user_message(self.walker, utterance, image = player.imgs[self.current_room])
+                self.add_user_message(self.walker, utterance, image = self.imgs[self.current_room])
             else:
                 self.add_user_message(self.walker, utterance)
                 
@@ -284,16 +280,6 @@ class MmMapWorld(DialogueGameMaster):
     def _on_after_turn(self, turn_idx: int):
         if self.aborted:
             self.log_to_self(type_ = "aborted", value = self.aborted)
-        elif self.stop:
-            pass
-        else:
-            old_room = self.current_room
-            if self.move is not None:
-                self.cardinal_room_change(self.move)
-
-            self.visited_nodes.append(self.current_room)
-
-            self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
         self.need_reprompt = False
         self.did_reprompt = False
             
@@ -374,27 +360,15 @@ class MM_MapWorldScorer(GameScorer):
         return found
     
     def plot_path(self, path):
-        offset = 0.01
+        offset = 0.03
         fig = plt.figure(figsize=(4, 4))
+        plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='gray', linewidth = 20, markersize = 25)
+        traveled = {}
+
         for node in self.nodes:
-            if node in path and node != path[-1]:
-                plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='brown', 
-                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:olive')
-            if node == path[-1]:
-                plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='brown', 
-                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:cyan')
-            if not node in path:
-                plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='brown', 
-                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:gray')
-        plt.xlim(-1, 5)
-        plt.ylim(-1, 5)
-        traveled = {node: 0 for node in self.nodes}
+            traveled[node] = 0
         traveled[self.start_node] += 1
-        for edge in self.edges:
-            if edge[0] in path and edge[1] in path:
-                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='black', linestyle='--', zorder = 5)
-            else:
-                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='gray', linestyle='--', zorder = 5)
+
         last = path[0]
         for i in range(1, len(path)):
             if path[i] == path[i - 1]:
@@ -405,14 +379,11 @@ class MM_MapWorldScorer(GameScorer):
             dy = y2 - y1
             t = traveled[path[i]]
             traveled[path[i]] += 1
-            color = "black"
-            if i == len(path)-1:
-                color = "red"
             plt.arrow(x1, 
                       y1, 
                       dx + t * offset, 
                       dy + t * offset, 
-                      color=color, 
+                      color='red', 
                       width = 0.005, 
                       head_width = 0.05, 
                       length_includes_head = True, 
@@ -421,6 +392,8 @@ class MM_MapWorldScorer(GameScorer):
                 x1 + dx + t * offset,
                 y1 + dy + t * offset
             )
+
+        # Customize the plot
         plt.axis('equal')
         plt.xlabel('X')
         plt.ylabel('Y')
