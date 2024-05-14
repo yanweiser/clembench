@@ -26,7 +26,7 @@ RESPONSE_REGEX = "\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"
 MOVE_CONSTRUCTION = "GO: "
 FOUND_REGEX = "DONE"
 MOVE_REGEX = "GO:\s*(north|east|south|west)"
-QA_REGEX = "ANSWER:\s*\d+"
+QA_REGEX = "Answer:\s*(\d+)"
 
 
 

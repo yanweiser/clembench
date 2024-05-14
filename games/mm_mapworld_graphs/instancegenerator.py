@@ -9,7 +9,7 @@ import json
 
 # set the name of the game in the script, as you named the directory
 # this name will be used everywhere, including in the table of results
-GAME_NAME = 'graph_reasoning'
+GAME_NAME = 'mm_mapworld_graphs'
 NUM_INSTANCES = 10
 GRIDS = {"small": (4,4), "medium": (4,4), "large": (4,4)}
 SIZES = {"small": 4, "medium": 6, "large": 8} # num_nodes
@@ -20,7 +20,7 @@ DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "nee
 MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
-GRAPH_REGEX = "\"graph\":\s*\{\s*\"nodes\"\s*:\s*\{.*\}\s*,\s*\"edges\"\s*:\s*\{.*\}\s*\}"
+GRAPH_REGEX = "\"graph\":\s*(\{\s*\"nodes\"\s*:\s*\{.*\}\s*,\s*\"edges\"\s*:\s*\{.*\})\s*\}"
 RESPONSE_REGEX = "\{[\s]*\"action\":\s*\"([^\{]*?)\"\s*,\s*\"description\":\s*\"([^\{]*?)\"[\s]*,\s*"
 RESPONSE_REGEX += GRAPH_REGEX
 
@@ -62,7 +62,7 @@ def assign_images(nodes):
     for i in range(len(nodes)):
         cat_mapping[nodes[i]] = chosen_cats[i].split("/")[1]
         node_img = np.random.choice(mapping[chosen_cats[i]])
-        imgs[nodes[i]] = os.path.join(DATASET_PATH, chosen_cats[i], node_img)
+        imgs[nodes[i]] = os.path.join(DATASET_PATH, node_img)
     return imgs, cat_mapping
 
 def instance_from_args(args, prompts):
@@ -87,7 +87,7 @@ def instance_from_args(args, prompts):
         
         
 
-class MmMapWorldInstanceGenerator(GameInstanceGenerator):
+class MmMapWorldGraphsInstanceGenerator(GameInstanceGenerator):
     def __init__(self):
         # always do this to initialise GameInstanceGenerator
         super().__init__(GAME_NAME)
@@ -124,5 +124,5 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
 
 if __name__ == '__main__':
     # always call this, which will actually generate and save the JSON file
-    MmMapWorldInstanceGenerator().generate()
+    MmMapWorldGraphsInstanceGenerator().generate()
 

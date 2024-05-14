@@ -19,14 +19,12 @@ from clemgame.clemgame import GameMaster, GameBenchmark, DialogueGameMaster, Gam
 from clemgame import get_logger
 from clemgame.clemgame import Player
 
-from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC_REQUEST_COUNT, \
-    METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_COUNT_PARSED, METRIC_REQUEST_SUCCESS, BENCH_SCORE, \
-        BENCH_SCORE
+from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE
 
 
 DIRS = ["north", "south", "east", "west"]
 GAME_NAME = 'mm_mapworld_qa'
-MAX_TURNS = 15
+MAX_TURNS = 20
 
 CARDINAL_TO_DELTA = {
     'north': (0, 1),
@@ -124,7 +122,7 @@ class PathDescriber(Player):
             return response 
 
         
-class MmMapWorld(DialogueGameMaster):
+class MmMapWorldQA(DialogueGameMaster):
     """Implement mechanisms for playing MM-MapWorld."""
 
     def __init__(self, experiment: Dict, player_models: List[Model]):
@@ -171,9 +169,9 @@ class MmMapWorld(DialogueGameMaster):
         self.init_prompt = game_instance["initial_prompt"]
         self.visited_nodes=[self.current_room]
         # regex for parsing
-        self.response_regex = re.compile(game_instance["response_regex"])
-        self.done_regex = re.compile(game_instance["done_regex"])
-        self.move_regex = re.compile(game_instance["move_regex"])
+        self.response_regex = re.compile(game_instance["response_regex"], re.IGNORECASE)
+        self.done_regex = re.compile(game_instance["done_regex"], re.IGNORECASE)
+        self.move_regex = re.compile(game_instance["move_regex"], re.IGNORECASE)
         # switches
         self.use_images = game_instance["use_images"]
         self.do_reprompt = game_instance["reprompt"]
@@ -185,7 +183,7 @@ class MmMapWorld(DialogueGameMaster):
         self.add_player(self.describer)
         # game version specific 
         self.describer.phase = 0
-        self.qa_regex = re.compile(game_instance["qa_regex"])
+        self.qa_regex = re.compile(game_instance["qa_regex"], re.IGNORECASE)
         
 
     def _on_before_game(self):
@@ -267,6 +265,8 @@ class MmMapWorld(DialogueGameMaster):
                 action_hit = re.search(self.done_regex, action)
                 if action_hit:
                     self.stop = True
+                    self.phase = 1
+                    self.describer.phase = 1
                     self.log_to_self("DONE", True)
                     return True
                 hit = re.search(self.move_regex, action)
@@ -291,8 +291,8 @@ class MmMapWorld(DialogueGameMaster):
                     self.aborted = True
                     self.log_to_self("Invalid format", "Game aborted.")
                     return False
-                qa_answer = hit.group()
-                qa_answer = qa_answer.split(':').strip()
+                print(hit.group())
+                qa_answer = hit.group(1)
                 try:
                     qa_answer = int(qa_answer)
                 except ValueError:
@@ -300,7 +300,10 @@ class MmMapWorld(DialogueGameMaster):
                     self.log_to_self("ValueError", "QA answer not an integer. Aborting.")
                     return False
                 self.answers.append(qa_answer)
-            return True
+                if self.describer.phase_1_turn == 2:
+                    self.game_finished = True
+                self.describer.phase_1_turn += 1
+        return True
         
     
     def _after_add_player_response(self, player: Player, utterance: str):
@@ -341,14 +344,6 @@ class MmMapWorld(DialogueGameMaster):
         self.need_reprompt = False
         self.did_reprompt = False
         
-        # phase transition and qa turn increase
-        if self.phase == 1:
-            if self.describer.phase_1_turn == 2:
-                self.game_finished = True
-            self.describer.phase_1_turn += 1
-        if self.phase == 0 and self.stop:
-            self.phase = 1
-            self.describer.phase = 1
             
     def _on_after_game(self):
         self.log_to_self("answers", json.dumps(self.answers))
@@ -375,7 +370,7 @@ class MmMapWorld(DialogueGameMaster):
         
     ####### scoring      
         
-class MM_MapWorldScorer(GameScorer):
+class MM_MapWorldQAScorer(GameScorer):
     def __init__(self, experiment: Dict, game_instance: Dict):
         super().__init__(GAME_NAME, experiment, game_instance)
         instance_data = utils.load_instance(self.game_instance)
@@ -473,7 +468,7 @@ class MM_MapWorldScorer(GameScorer):
                     given_answers = json.loads(action['content'])
         
         correct = [0, 0, 0]
-        for i in range(3):
+        for i in range(len(given_answers)):
             correct[i] = (given_answers[i] == int(self.questions[i]['a']))
                 
         # log all the scores
@@ -582,7 +577,7 @@ class MM_MapWorldScorer(GameScorer):
         
                 
 
-class MmMapWorldBenchmark(GameBenchmark):
+class MmMapWorldQABenchmark(GameBenchmark):
     """Integrate the game into the benchmark run."""
     def __init__(self):
         super().__init__(GAME_NAME)
@@ -600,7 +595,7 @@ class MmMapWorldBenchmark(GameBenchmark):
                            experiment: Dict,
                            player_models: List[Model]
                            ) -> GameMaster:
-        return MmMapWorld(experiment, player_models)
+        return MmMapWorldQA(experiment, player_models)
     
     def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
-        return MM_MapWorldScorer(experiment, game_instance)
+        return MM_MapWorldQAScorer(experiment, game_instance)

@@ -374,20 +374,20 @@ class MM_MapWorldScorer(GameScorer):
         return found
     
     def plot_path(self, path):
-        offset = 0.01
+        offset = 0.05
         fig = plt.figure(figsize=(4, 4))
         for node in self.nodes:
             if node in path and node != path[-1]:
-                plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='brown', 
+                plt.plot(node[0], node[1], 'o', color='brown', 
                         linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:olive')
             if node == path[-1]:
-                plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='brown', 
+                plt.plot(node[0], node[1], 'o', color='brown', 
                         linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:cyan')
             if not node in path:
-                plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='brown', 
+                plt.plot(node[0], node[1], 'o', color='brown', 
                         linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:gray')
-        plt.xlim(-1, 5)
-        plt.ylim(-1, 5)
+        plt.xlim(-1, 4)
+        plt.ylim(-1, 4)
         traveled = {node: 0 for node in self.nodes}
         traveled[self.start_node] += 1
         for edge in self.edges:
@@ -408,6 +408,7 @@ class MM_MapWorldScorer(GameScorer):
             color = "black"
             if i == len(path)-1:
                 color = "red"
+            t = sum([(1/(1+j)) for j in range(t)])
             plt.arrow(x1, 
                       y1, 
                       dx + t * offset, 
@@ -421,7 +422,6 @@ class MM_MapWorldScorer(GameScorer):
                 x1 + dx + t * offset,
                 y1 + dy + t * offset
             )
-        plt.axis('equal')
         plt.xlabel('X')
         plt.ylabel('Y')
         plt.grid(True)

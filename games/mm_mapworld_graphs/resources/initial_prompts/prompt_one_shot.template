@@ -14,7 +14,7 @@ We have made a step and are now in this room. From here we can go: east. What is
 {"action":"GO: east", "description": "We are in a living room with a couch and a tv.", "graph":{"nodes":{0: "Kitchen", 1: "Living Room"}, "edges":{"north": {0: 1}, "south": {}, "east": {}, "west": {}}}}
 You have made a step and are now in this room. From here we can go: west, south. What is your next instruction?
 {"action":"GO: south", "description": "We are in a bedroom with two beds and a nightstand.",  "graph":{"nodes":{0: "Kitchen", 1: "Living Room", 2: "Bedroom"}, "edges":{"north": {0: 1}, "south": {}, "east": {1: 2}, "west": {}}}}
-…
+...
 You have made a step and are now in this room. From here we can go: north. What is your next instruction?
 Example answer:
 {"action":"DONE", "description": "We are in a stairwell, the stair is curved.", "graph":"{...}"}

@@ -99,7 +99,7 @@ class PathDescriber(Player):
         return response
 
         
-class MmMapWorld(DialogueGameMaster):
+class MmMapWorldGraphs(DialogueGameMaster):
     """Implement mechanisms for playing MM-MapWorld."""
 
     def __init__(self, experiment: Dict, player_models: List[Model]):
@@ -135,7 +135,8 @@ class MmMapWorld(DialogueGameMaster):
         self.imgs = instance_data["imgs"]
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
-        self.start = instance_data["start"]
+        self.start = instance_data["start"]        
+        self.cats = instance_data["cats"]
         self.current_room = instance_data["start"]
         self.init_prompt = game_instance["initial_prompt"]
         self.visited_nodes=[self.current_room]
@@ -216,12 +217,7 @@ class MmMapWorld(DialogueGameMaster):
                 self.aborted = True
                 self.log_to_self("Invalid format", "Game aborted.")
                 return False
-            try:
-                action = json.loads(hit.group())['action']
-            except json.decoder.JSONDecodeError:
-                self.aborted = True
-                self.log_to_self("JSON decode error", "Game aborted.")
-                return False
+            action = hit.group(1)
             action_hit = re.search(self.done_regex, action)
             if action_hit:
                 self.stop = True
@@ -308,7 +304,7 @@ class MmMapWorld(DialogueGameMaster):
         
     ####### scoring      
         
-class MM_MapWorldScorer(GameScorer):
+class MM_MapWorldGraphsScorer(GameScorer):
     def __init__(self, experiment: Dict, game_instance: Dict):
         super().__init__(GAME_NAME, experiment, game_instance)
         instance_data = utils.load_instance(self.game_instance)
@@ -509,7 +505,7 @@ class MM_MapWorldScorer(GameScorer):
         
                 
 
-class MmMapWorldBenchmark(GameBenchmark):
+class MmMapWorldGraphsBenchmark(GameBenchmark):
     """Integrate the game into the benchmark run."""
     def __init__(self):
         super().__init__(GAME_NAME)
@@ -527,7 +523,7 @@ class MmMapWorldBenchmark(GameBenchmark):
                            experiment: Dict,
                            player_models: List[Model]
                            ) -> GameMaster:
-        return MmMapWorld(experiment, player_models)
+        return MmMapWorldGraphs(experiment, player_models)
     
     def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
-        return MM_MapWorldScorer(experiment, game_instance)
+        return MM_MapWorldGraphsScorer(experiment, game_instance)

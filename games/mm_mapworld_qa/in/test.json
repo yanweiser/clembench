@@ -87,7 +87,7 @@
                     "done_regex": "DONE",
                     "move_regex": "GO:\\s*(north|east|south|west)",
                     "response_regex": "\\{[\\s]*\"description\":\\s*\"([^\\{]*?)\"\\s*,\\s*\"action\":\\s*\"([^\\{]*?)\"[\\s]*\\}",
-                    "qa_regex": "ANSWER:\\s*\\d+"
+                    "qa_regex": "Answer:\\s*(\\d+)"
                 }
             ]
         },
@@ -178,7 +178,7 @@
                     "done_regex": "DONE",
                     "move_regex": "GO:\\s*(north|east|south|west)",
                     "response_regex": "\\{[\\s]*\"description\":\\s*\"([^\\{]*?)\"\\s*,\\s*\"action\":\\s*\"([^\\{]*?)\"[\\s]*\\}",
-                    "qa_regex": "ANSWER:\\s*\\d+"
+                    "qa_regex": "Answer:\\s*(\\d+)"
                 }
             ]
         },
@@ -269,7 +269,7 @@
                     "done_regex": "DONE",
                     "move_regex": "GO:\\s*(north|east|south|west)",
                     "response_regex": "\\{[\\s]*\"description\":\\s*\"([^\\{]*?)\"\\s*,\\s*\"action\":\\s*\"([^\\{]*?)\"[\\s]*\\}",
-                    "qa_regex": "ANSWER:\\s*\\d+"
+                    "qa_regex": "Answer:\\s*(\\d+)"
                 }
             ]
         }
