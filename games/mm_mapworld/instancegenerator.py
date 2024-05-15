@@ -5,6 +5,7 @@ from maps import AbstractMap
 import os
 import random
 import json
+import shutil
 
 
 # set the name of the game in the script, as you named the directory
@@ -23,6 +24,7 @@ if CAPTIONS:
 else:
     DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "needed_imgs")
     MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
+TEMP_IMAGE_PATH = os.path.join("games", "mm_mapworld", "resources", "images")
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
 RESPONSE_REGEX = "\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}"
@@ -80,12 +82,15 @@ def assign_images(nodes):
     imgs = {}
     cat_mapping = {}
     for i in range(len(nodes)):
+        node_img = np.random.choice(mapping[chosen_cats[i]])
         if CAPTIONS:
             cat_mapping[nodes[i]] = chosen_cats[i]
+            after_copy_path = copy_image(os.path.join(DATASET_PATH, chosen_cats[i], node_img))
+            imgs[nodes[i]] = after_copy_path
         else:
             cat_mapping[nodes[i]] = chosen_cats[i].split("/")[1]
-        node_img = np.random.choice(mapping[chosen_cats[i]])
-        imgs[nodes[i]] = os.path.join(DATASET_PATH, chosen_cats[i], node_img)
+            after_copy_path = copy_image(os.path.join(DATASET_PATH, node_img))
+            imgs[nodes[i]] = after_copy_path
     return imgs, cat_mapping
 
 def instance_from_args(args, prompts):
@@ -109,7 +114,17 @@ def instance_from_args(args, prompts):
         instances[i]["loop_warning"] = prompts["loop_warning"]
     return instances
         
-        
+def prep_image_dir():
+    if os.path.exists(TEMP_IMAGE_PATH):
+        shutil.rmtree(TEMP_IMAGE_PATH)
+    os.makedirs(TEMP_IMAGE_PATH)
+    
+def copy_image(image_path):
+    filename = os.path.split(image_path)[1]
+    src = image_path
+    tgt = os.path.join(TEMP_IMAGE_PATH, filename)
+    shutil.copy(src, tgt)
+    return tgt
 
 class MmMapWorldInstanceGenerator(GameInstanceGenerator):
     def __init__(self):
@@ -132,7 +147,8 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
             'medium_cycle': {"size": "medium", "reprompt": False, "one_shot": True, "cycle": True},
             'large_cycle': {"size": "large", "reprompt": False, "one_shot": True, "cycle": True},
         }
-
+        
+        prep_image_dir()
         for exp in experiments.keys():
              experiment = self.add_experiment(exp)
              game_id = 0

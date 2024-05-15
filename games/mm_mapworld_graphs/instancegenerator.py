@@ -5,6 +5,7 @@ from maps import AbstractMap
 import os
 import random
 import json
+import shutil
 
 
 # set the name of the game in the script, as you named the directory
@@ -18,6 +19,7 @@ RANDOM_PATH = 'random_test_images'
 IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
 DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "needed_imgs")
 MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
+TEMP_IMAGE_PATH = os.path.join("games", "mm_mapworld_graphs", "resources", "images")
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
 GRAPH_REGEX = "\"graph\":\s*(\{\s*\"nodes\"\s*:\s*\{.*\}\s*,\s*\"edges\"\s*:\s*\{.*\})\s*\}"
@@ -62,7 +64,8 @@ def assign_images(nodes):
     for i in range(len(nodes)):
         cat_mapping[nodes[i]] = chosen_cats[i].split("/")[1]
         node_img = np.random.choice(mapping[chosen_cats[i]])
-        imgs[nodes[i]] = os.path.join(DATASET_PATH, node_img)
+        after_copy_path = copy_image(os.path.join(DATASET_PATH, node_img))
+        imgs[nodes[i]] = after_copy_path
     return imgs, cat_mapping
 
 def instance_from_args(args, prompts):
@@ -84,7 +87,28 @@ def instance_from_args(args, prompts):
         instances[i]["limit_warning"] = prompts["limit_warning"]
         instances[i]["loop_warning"] = prompts["loop_warning"]
     return instances
-        
+
+def instances_from_instances(instances, prompts):
+    for i in range(len(instances)):
+        instances[i]['initial_prompt'] = prompts['initial_one_shot']
+        instances[i]['success_response'] = prompts['later_success']
+        instances[i]['invalid_response'] = prompts['later_invalid']
+        instances[i]["reprompt_format"] = prompts["reprompt_format"]
+        instances[i]["limit_warning"] = prompts["limit_warning"]
+        instances[i]["loop_warning"] = prompts["loop_warning"]
+    return instances
+
+def prep_image_dir():
+    if os.path.exists(TEMP_IMAGE_PATH):
+        shutil.rmtree(TEMP_IMAGE_PATH)
+    os.makedirs(TEMP_IMAGE_PATH)
+    
+def copy_image(image_path):
+    filename = os.path.split(image_path)[1]
+    src = image_path
+    tgt = os.path.join(TEMP_IMAGE_PATH, filename)
+    shutil.copy(src, tgt)
+    return tgt
         
 
 class MmMapWorldGraphsInstanceGenerator(GameInstanceGenerator):
@@ -107,20 +131,41 @@ class MmMapWorldGraphsInstanceGenerator(GameInstanceGenerator):
             'large': {"size": "large", "reprompt": False, "one_shot": True}
         }
 
-        for exp in experiments.keys():
-             experiment = self.add_experiment(exp)
-             game_id = 0
-             generated_instances = instance_from_args(experiments[exp], prompts)
-             for inst in generated_instances:
-                 instance = self.add_game_instance(experiment, game_id)
-                 for key, value in inst.items():
-                     instance[key] = value
-                 instance["move_construction"] = MOVE_CONSTRUCTION
-                 instance["stop_construction"] = STOP_CONSTRUCTION
-                 instance["response_regex"] = RESPONSE_REGEX
-                 instance["done_regex"] = DONE_REGEX
-                 instance["move_regex"] = MOVE_REGEX
-                 game_id += 1
+        prep_image_dir()
+        base_instance_path = os.path.join("games", "mm_mapworld", "in", "instances.json")
+        
+        if os.path.exists(base_instance_path):
+            with open(base_instance_path, 'r') as f:
+                base_instances = json.load(f)
+            images_path = os.path.join("games", "mm_mapworld", "resources", "images")
+            assert os.path.exists(images_path), "run instancegenerator for mm_mapworld to create images directory."
+            new_instances = {"experiments": base_instances["experiments"][:3]}
+            for i in range(len(new_instances["experiments"])):
+                new_instances["experiments"][i]["game_instances"] = instances_from_instances(new_instances["experiments"][i]["game_instances"], prompts)
+                for j in range(len(new_instances["experiments"][i]["game_instances"])):
+                    new_instances["experiments"][i]["game_instances"][j]["response_regex"] = RESPONSE_REGEX
+            new_instance_path = os.path.join("games", "mm_mapworld_graphs", "in", "instances.json")
+            with open(new_instance_path, "w", encoding='utf-8') as f:
+                json.dump(new_instances, f)
+            if os.path.exists(TEMP_IMAGE_PATH):
+                shutil.rmtree(TEMP_IMAGE_PATH)
+            exit(1)
+        
+        else:
+            for exp in experiments.keys():
+                experiment = self.add_experiment(exp)
+                game_id = 0
+                generated_instances = instance_from_args(experiments[exp], prompts)
+                for inst in generated_instances:
+                    instance = self.add_game_instance(experiment, game_id)
+                    for key, value in inst.items():
+                        instance[key] = value
+                    instance["move_construction"] = MOVE_CONSTRUCTION
+                    instance["stop_construction"] = STOP_CONSTRUCTION
+                    instance["response_regex"] = RESPONSE_REGEX
+                    instance["done_regex"] = DONE_REGEX
+                    instance["move_regex"] = MOVE_REGEX
+                    game_id += 1
 
 if __name__ == '__main__':
     # always call this, which will actually generate and save the JSON file

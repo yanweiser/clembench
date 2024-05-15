@@ -147,6 +147,7 @@ class MmMapWorld(DialogueGameMaster):
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
         self.start = instance_data["start"]
+        self.cats = instance_data["cats"]
         self.current_room = instance_data["start"]
         self.init_prompt = game_instance["initial_prompt"]
         self.visited_nodes=[self.current_room]
