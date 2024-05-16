@@ -260,7 +260,7 @@ class MmMapWorld(DialogueGameMaster):
             if not self.need_reprompt or self.did_reprompt:
                 self.add_user_message(self.describer, utterance)
         if player == self.describer:
-            self.add_user_message(self.walker, utterance, image = player.imgs[self.current_room])
+            self.add_user_message(self.walker, utterance, image = [player.imgs[self.current_room]])
                 
     def _should_reprompt(self, player: Player):
         if player == self.walker and self.need_reprompt and not self.did_reprompt:
@@ -272,7 +272,7 @@ class MmMapWorld(DialogueGameMaster):
         reprompt = self.reprompt_format
         reprompt = reprompt.replace("$DIRECTIONS$", ', '.join(avail))
         if self.use_images:
-            self.add_user_message(self.walker, reprompt, image = self.imgs[self.current_room])
+            self.add_user_message(self.walker, reprompt, image = [self.imgs[self.current_room]])
         else:
             self.add_user_message(self.walker, reprompt)
         self.did_reprompt = True

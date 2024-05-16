@@ -221,6 +221,7 @@ class MmMapWorldGraphs(DialogueGameMaster):
                 self.log_to_self("Invalid format", "Game aborted.")
                 return False
             action = hit.group(1)
+            self.log_to_self("graph", hit.group(3))
             action_hit = re.search(self.done_regex, action)
             if action_hit:
                 self.stop = True
@@ -249,7 +250,7 @@ class MmMapWorldGraphs(DialogueGameMaster):
             if not self.need_reprompt or self.did_reprompt:
                 self.add_user_message(self.describer, utterance)
         if player == self.describer:
-            self.add_user_message(self.walker, utterance, image = self.imgs[self.current_room])
+            self.add_user_message(self.walker, utterance, image = [self.imgs[self.current_room]])
                 
     def _should_reprompt(self, player: Player):
         if player == self.walker and self.need_reprompt and not self.did_reprompt:
@@ -261,7 +262,7 @@ class MmMapWorldGraphs(DialogueGameMaster):
         reprompt = self.reprompt_format
         reprompt = reprompt.replace("$DIRECTIONS$", ', '.join(avail))
         if self.use_images:
-            self.add_user_message(self.walker, reprompt, image = self.imgs[self.current_room])
+            self.add_user_message(self.walker, reprompt, image = [self.imgs[self.current_room]])
         else:
             self.add_user_message(self.walker, reprompt)
         self.did_reprompt = True
@@ -417,10 +418,14 @@ class MM_MapWorldGraphsScorer(GameScorer):
         plt.grid(True)
         return fig
     
-    def calculate_similarity(graph1, graph2):
+    def normalize(self, distance):
+        normalized_distance = 1 / (1 + np.exp(-0.5 * distance))
+        return normalized_distance
+    
+    def calculate_similarity(self, graph1, graph2):
         distance = nx.graph_edit_distance(graph1, graph2)
-        max_possible_distance = max(len(graph1), len(graph2))
-        similarity = 1 - distance / max_possible_distance
+        normalized_distance = self.normalize(distance)
+        similarity = 1 - normalized_distance
         return similarity
 
 
@@ -462,29 +467,29 @@ class MM_MapWorldGraphsScorer(GameScorer):
                     seen.update(self.adj(current))
                     visited.add(current)
                     self.path.append(current)
-                if action['type'] == 'parse':
-                    nodes = []
-                    edges = []
-                    hit = re.search(self.response_regex, action['content'])
-                    if hit:
-                        graph = hit.group(3)
-                        try:
-                            loaded_graph_info = json.loads(graph)
-                        except json.decoder.JSONDecodeError:
-                            loaded_graph_info = json.dumps({
-                                "nodes": [],
-                                "edges": {}
-                            })
-                        nx_graph = nx.Graph()
-                        nx_graph.add_nodes_from(loaded_graph_info['nodes'])
-                        for dir in loaded_graph_info['edges']:
-                            nx_graph.add_edges_from(loaded_graph_info['edges'][dir])
-                        similarities.append(nx_graph, self.actual_graph)
+                if action['type'] == 'graph':
+                    graph = action['content']
+                    try:
+                        loaded_graph_info = json.loads(graph)
+                    except json.decoder.JSONDecodeError:
+                        loaded_graph_info = {
+                            "nodes": [],
+                            "edges": {}
+                        }
+                    nx_graph = nx.Graph()
+                    nx_graph.add_nodes_from(loaded_graph_info['nodes'])
+                    for direction in loaded_graph_info['edges']:
+                        for edge in loaded_graph_info['edges'][direction]:
+                            if len(edge) == 2:
+                                nx_graph.add_edge(*edge)
+                    similarities.append(self.calculate_similarity(nx_graph, self.actual_graph))
+
 
         # log all the scores
         if aborted: # set all values to NaN if game is aborted
             for i, val in enumerate(good_move):
                 self.log_turn_score(i, "effiencient_move", np.NaN)
+            for i in range(len(similarities)):
                 self.log_turn_score(i, "turn_graph_similarity", np.NaN)
             self.log_episode_score(METRIC_ABORTED, 1)
             self.log_episode_score(METRIC_SUCCESS, np.NaN)
@@ -495,11 +500,13 @@ class MM_MapWorldGraphsScorer(GameScorer):
             self.log_episode_score('visited', np.NaN)
             self.log_episode_score('seen', np.NaN)
             self.log_episode_score('effieciency', np.NaN)
+            self.log_episode_score('graph_similarity', np.NaN)
             self.log_episode_score('exploration', np.NaN)
             self.log_episode_score(BENCH_SCORE, np.NaN)
         else: # else set them to their respective values
             for i, val in enumerate(good_move):
-                self.log_turn_score(i, "effiencient_move", good_move[i])
+                self.log_turn_score(i, "effiencient_move", int(good_move[i]))
+            for i in range(len(similarities)):
                 self.log_turn_score(i, "turn_graph_similarity", similarities[i])
             self.log_episode_score(METRIC_ABORTED, 0)
             if self.visited_all(visited, self.nodes):
@@ -508,7 +515,10 @@ class MM_MapWorldGraphsScorer(GameScorer):
             else:
                 self.log_episode_score(METRIC_SUCCESS, 0)
                 self.log_episode_score(METRIC_LOSE, 1)
-            self.log_episode_score('graph_similarity', similarities[-1])
+            if similarities:
+                self.log_episode_score('graph_similarity', similarities[-1])
+            else:
+                self.log_episode_score('graph_similarity', 0)
             self.log_episode_score('moves', valid_moves + invalid_moves)
             self.log_episode_score('valid_moves', valid_moves)
             self.log_episode_score('invalid_moves', invalid_moves)
