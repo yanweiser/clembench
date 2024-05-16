@@ -22,7 +22,7 @@ MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade
 TEMP_IMAGE_PATH = os.path.join("games", "mm_mapworld_graphs", "resources", "images")
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
-GRAPH_REGEX = "\"graph\":\s*(\{\s*\"nodes\"\s*:\s*\{.*\}\s*,\s*\"edges\"\s*:\s*\{.*\})\s*\}"
+GRAPH_REGEX = "\"graph\":\s*(\{\s*\"nodes\"\s*:\s*\[.*\]\s*,\s*\"edges\"\s*:\s*\{.*\})\s*\}"
 RESPONSE_REGEX = "\{[\s]*\"action\":\s*\"([^\{]*?)\"\s*,\s*\"description\":\s*\"([^\{]*?)\"[\s]*,\s*"
 RESPONSE_REGEX += GRAPH_REGEX
 

@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import imageio
 import shutil
+import networkx as nx
 
 import games.mm_mapworld_graphs.utils as utils
 
@@ -57,13 +58,15 @@ class PathDescriber(Player):
         self.current_room = instance_data["start"]
         self.success_response = game_instance["success_response"]
         self.invalid_response = game_instance["invalid_response"]
+        self.init_prompt = game_instance["initial_prompt"]
         self.loop_response = game_instance["loop_warning"]
         self.limit_warning = game_instance["limit_warning"]
         self.visited_nodes=[self.current_room]
         self.use_loop_warning = game_instance["use_loop_warning"]
         self.use_turn_limit_warning = game_instance["use_turn_limit_warning"]
         
-        self.invalid_direction = False
+        self.invalid_move = False
+
         
     def get_available_moves(self, node):
         return [edge for edge in self.edges if node == edge[0]]
@@ -88,14 +91,17 @@ class PathDescriber(Player):
 
     def _custom_response(self, messages, turn_idx) -> str:
         available_directions = self.get_available_directions(self.current_room)
-        if self.invalid_direction:
-            response = self.invalid_response.replace("$DIRECTIONS$", ", ".join(available_directions))
+        if turn_idx == 0:
+            response = self.init_prompt.replace('$INITIAL_DIRECTIONS$', ', '.join(available_directions))
         else:
-            response = self.success_response.replace("$DIRECTIONS$", ", ".join(available_directions))
-        if self.detect_loop() and self.use_loop_warning:
-            response = self.loop_response + response
-        if turn_idx == (MAX_TURNS - 2) and self.use_turn_limit_warning:
-            response = self.limit_warning + response
+            if self.invalid_move:
+                response = self.invalid_response.replace("$DIRECTIONS$", ", ".join(available_directions))
+            else:
+                response = self.success_response.replace("$DIRECTIONS$", ", ".join(available_directions))
+            if self.detect_loop() and self.use_loop_warning:
+                response = self.loop_response + response
+            if turn_idx == (MAX_TURNS - 2) and self.use_turn_limit_warning:
+                response = self.limit_warning + response
         return response
 
         
@@ -131,14 +137,12 @@ class MmMapWorldGraphs(DialogueGameMaster):
         """" sets the information you specify in instances.json """
         self.game_instance = game_instance
         instance_data = utils.load_instance(self.game_instance)
-        instance_data['initial_prompt'] = game_instance["initial_prompt"]
         self.imgs = instance_data["imgs"]
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
         self.start = instance_data["start"]        
         self.cats = instance_data["cats"]
         self.current_room = instance_data["start"]
-        self.init_prompt = game_instance["initial_prompt"]
         self.visited_nodes=[self.current_room]
         
         self.response_regex = re.compile(game_instance["response_regex"])
@@ -155,23 +159,22 @@ class MmMapWorldGraphs(DialogueGameMaster):
 
         self.describer = PathDescriber(CustomResponseModel(), game_instance)
         self.walker = PathWalker(self.player_models[0])
-        self.add_player(self.walker)
         self.add_player(self.describer)
+        self.add_player(self.walker)
 
     def _on_before_game(self):
-        start_directions = self.describer.get_available_directions(self.describer.start)
-        prompt = self.init_prompt.replace('$INITIAL_DIRECTIONS$', ', '.join(start_directions))
-        # add initial prompt to dialogue
-        if self.use_images:
-            initial_image = self.describer.imgs[self.start]
-            self.add_user_message(self.walker, prompt, image = initial_image)
-        else:
-            self.add_user_message(self.walker, prompt)
+        begin_message = json.dumps({
+            "start": self.start,
+            "size": len(self.nodes),
+            "game": GAME_NAME
+        })
+        self.add_user_message(self.describer, begin_message)
             
     def _on_before_turn(self, turn_idx: int):
         value = {
-            "path": self.imgs[self.current_room],
-            "cat": self.cats[self.current_room]
+            "turn": turn_idx,
+            "room": self.cats[self.current_room],
+            "image": os.path.split(self.imgs[self.current_room])[1]
         }
         self.log_to_self("room_image", json.dumps(value))
  
@@ -238,13 +241,6 @@ class MmMapWorldGraphs(DialogueGameMaster):
                 return False
             new_dir = hit.group(1)
             self.move = new_dir
-            old_room = self.current_room
-            self.cardinal_room_change(new_dir)
-            self.describer.cardinal_room_change(new_dir)
-            self.describer.invalid_direction = old_room == self.current_room
-            self.visited_nodes.append(self.current_room)
-            self.describer.visited_nodes.append(self.current_room)
-            self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
             self.log_to_self("Valid format", "Continue")
         return True
     
@@ -253,10 +249,7 @@ class MmMapWorldGraphs(DialogueGameMaster):
             if not self.need_reprompt or self.did_reprompt:
                 self.add_user_message(self.describer, utterance)
         if player == self.describer:
-            if self.use_images:
-                self.add_user_message(self.walker, utterance, image = self.imgs[self.current_room])
-            else:
-                self.add_user_message(self.walker, utterance)
+            self.add_user_message(self.walker, utterance, image = self.imgs[self.current_room])
                 
     def _should_reprompt(self, player: Player):
         if player == self.walker and self.need_reprompt and not self.did_reprompt:
@@ -276,6 +269,17 @@ class MmMapWorldGraphs(DialogueGameMaster):
     def _on_after_turn(self, turn_idx: int):
         if self.aborted:
             self.log_to_self(type_ = "aborted", value = self.aborted)
+        elif self.stop:
+            pass
+        else:
+            old_room = self.current_room
+            if self.move is not None:
+                self.cardinal_room_change(self.move)
+                self.describer.cardinal_room_change(self.move)
+            self.describer.invalid_move = old_room == self.current_room
+            self.visited_nodes.append(self.current_room)
+            self.describer.visited_nodes.append(self.current_room)
+            self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
         self.need_reprompt = False
         self.did_reprompt = False
             
@@ -312,6 +316,10 @@ class MM_MapWorldGraphsScorer(GameScorer):
         self.nodes = instance_data["nodes"]
         self.edges = instance_data["edges"]
         self.start_node = instance_data["start"]
+        self.response_regex = re.compile(game_instance['response_regex'], re.IGNORECASE)
+        self.actual_graph = nx.Graph()
+        self.actual_graph.add_nodes_from(self.nodes)
+        self.actual_graph.add_edges_from(self.edges)
         
     def adj(self, node):
         return set([ed[1] for ed in self.edges if ed[0] == node])
@@ -356,15 +364,27 @@ class MM_MapWorldGraphsScorer(GameScorer):
         return found
     
     def plot_path(self, path):
-        offset = 0.03
+        offset = 0.05
         fig = plt.figure(figsize=(4, 4))
-        plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='gray', linewidth = 20, markersize = 25)
-        traveled = {}
-
         for node in self.nodes:
-            traveled[node] = 0
+            if node in path and node != path[-1]:
+                plt.plot(node[0], node[1], 'o', color='brown', 
+                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:olive')
+            if node == path[-1]:
+                plt.plot(node[0], node[1], 'o', color='brown', 
+                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:cyan')
+            if not node in path:
+                plt.plot(node[0], node[1], 'o', color='brown', 
+                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:gray')
+        plt.xlim(-1, 4)
+        plt.ylim(-1, 4)
+        traveled = {node: 0 for node in self.nodes}
         traveled[self.start_node] += 1
-
+        for edge in self.edges:
+            if edge[0] in path and edge[1] in path:
+                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='black', linestyle='--', zorder = 5)
+            else:
+                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='gray', linestyle='--', zorder = 5)
         last = path[0]
         for i in range(1, len(path)):
             if path[i] == path[i - 1]:
@@ -375,11 +395,15 @@ class MM_MapWorldGraphsScorer(GameScorer):
             dy = y2 - y1
             t = traveled[path[i]]
             traveled[path[i]] += 1
+            color = "black"
+            if i == len(path)-1:
+                color = "red"
+            t = sum([(1/(1+j)) for j in range(t)])
             plt.arrow(x1, 
                       y1, 
                       dx + t * offset, 
                       dy + t * offset, 
-                      color='red', 
+                      color=color, 
                       width = 0.005, 
                       head_width = 0.05, 
                       length_includes_head = True, 
@@ -388,13 +412,16 @@ class MM_MapWorldGraphsScorer(GameScorer):
                 x1 + dx + t * offset,
                 y1 + dy + t * offset
             )
-
-        # Customize the plot
-        plt.axis('equal')
         plt.xlabel('X')
         plt.ylabel('Y')
         plt.grid(True)
         return fig
+    
+    def calculate_similarity(graph1, graph2):
+        distance = nx.graph_edit_distance(graph1, graph2)
+        max_possible_distance = max(len(graph1), len(graph2))
+        similarity = 1 - distance / max_possible_distance
+        return similarity
 
 
     def compute_scores(self, episode_interactions) -> None:
@@ -407,9 +434,9 @@ class MM_MapWorldGraphsScorer(GameScorer):
         invalid_moves = 0
         aborted = False
         good_move = []
+        similarities = []
         
         for turn in episode_interactions["turns"]:
-
             for event in turn:
                 action = event["action"]
                 if action["type"] == "aborted":
@@ -423,13 +450,10 @@ class MM_MapWorldGraphsScorer(GameScorer):
                         valid_moves += 1
                     else:
                         invalid_moves += 1
-                    
                     if not self.visited_all(visited, self.nodes) and not old == new:
                         best_moves = self.find_best_moves(old, visited)
-#                         print(best_moves)
                         if (old,new) in best_moves:
                             good_move.append(True)
-
                         else:
                             good_move.append(False)
                     else:
@@ -438,11 +462,30 @@ class MM_MapWorldGraphsScorer(GameScorer):
                     seen.update(self.adj(current))
                     visited.add(current)
                     self.path.append(current)
-                
+                if action['type'] == 'parse':
+                    nodes = []
+                    edges = []
+                    hit = re.search(self.response_regex, action['content'])
+                    if hit:
+                        graph = hit.group(3)
+                        try:
+                            loaded_graph_info = json.loads(graph)
+                        except json.decoder.JSONDecodeError:
+                            loaded_graph_info = json.dumps({
+                                "nodes": [],
+                                "edges": {}
+                            })
+                        nx_graph = nx.Graph()
+                        nx_graph.add_nodes_from(loaded_graph_info['nodes'])
+                        for dir in loaded_graph_info['edges']:
+                            nx_graph.add_edges_from(loaded_graph_info['edges'][dir])
+                        similarities.append(nx_graph, self.actual_graph)
+
         # log all the scores
         if aborted: # set all values to NaN if game is aborted
             for i, val in enumerate(good_move):
                 self.log_turn_score(i, "effiencient_move", np.NaN)
+                self.log_turn_score(i, "turn_graph_similarity", np.NaN)
             self.log_episode_score(METRIC_ABORTED, 1)
             self.log_episode_score(METRIC_SUCCESS, np.NaN)
             self.log_episode_score(METRIC_LOSE, np.NaN)
@@ -455,6 +498,9 @@ class MM_MapWorldGraphsScorer(GameScorer):
             self.log_episode_score('exploration', np.NaN)
             self.log_episode_score(BENCH_SCORE, np.NaN)
         else: # else set them to their respective values
+            for i, val in enumerate(good_move):
+                self.log_turn_score(i, "effiencient_move", good_move[i])
+                self.log_turn_score(i, "turn_graph_similarity", similarities[i])
             self.log_episode_score(METRIC_ABORTED, 0)
             if self.visited_all(visited, self.nodes):
                 self.log_episode_score(METRIC_SUCCESS, 1)
@@ -462,6 +508,7 @@ class MM_MapWorldGraphsScorer(GameScorer):
             else:
                 self.log_episode_score(METRIC_SUCCESS, 0)
                 self.log_episode_score(METRIC_LOSE, 1)
+            self.log_episode_score('graph_similarity', similarities[-1])
             self.log_episode_score('moves', valid_moves + invalid_moves)
             self.log_episode_score('valid_moves', valid_moves)
             self.log_episode_score('invalid_moves', invalid_moves)

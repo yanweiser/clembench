@@ -198,8 +198,9 @@ class MmMapWorldQA(DialogueGameMaster):
             
     def _on_before_turn(self, turn_idx: int):
         value = {
-            "path": self.imgs[self.current_room],
-            "cat": self.cats[self.current_room]
+            "turn": turn_idx,
+            "room": self.cats[self.current_room],
+            "image": os.path.split(self.imgs[self.current_room])[1]
         }
         self.log_to_self("room_image", json.dumps(value))
  
@@ -340,6 +341,7 @@ class MmMapWorldQA(DialogueGameMaster):
             if self.move is not None:
                 self.cardinal_room_change(self.move)
             self.visited_nodes.append(self.current_room)
+            self.describer.visited_nodes.append(self.current_room)
             self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
         self.need_reprompt = False
         self.did_reprompt = False
@@ -484,6 +486,8 @@ class MM_MapWorldQAScorer(GameScorer):
             self.log_episode_score('visited', np.NaN)
             self.log_episode_score('seen', np.NaN)
             self.log_episode_score('exploration', np.NaN)
+            self.log_episode_score('efficiency', np.NaN)
+            self.log_episode_score('question_answering', np.NaN)
             self.log_episode_score(BENCH_SCORE, np.NaN)
         else: # else set them to their respective values
             self.log_episode_score(METRIC_ABORTED, 0)
@@ -498,8 +502,14 @@ class MM_MapWorldQAScorer(GameScorer):
             self.log_episode_score('invalid_moves', invalid_moves)
             self.log_episode_score('visited', len(visited))
             self.log_episode_score('seen', len(seen))
-            self.log_episode_score('exploration', len(visited)/len(self.nodes))
-            self.log_episode_score(BENCH_SCORE, 100*(sum(correct)/len(correct)))
+            exp = len(visited)/len(self.nodes)
+            self.log_episode_score('exploration', exp)
+            eff = sum(good_move)/len(good_move)
+            self.log_episode_score('efficiency', eff)
+            qa = (sum(correct)/len(correct))
+            self.log_episode_score('question_answering', qa)
+            h_mean = 3/((1/eff)+(1/exp)+(1/qa))
+            self.log_episode_score(BENCH_SCORE, 100*h_mean)
 
 
     def plot_path(self, path):
