@@ -194,3 +194,15 @@ def loop_identification(visited_rooms, double_cycle):
                 if l1[-1] == l1[-5] and l1[-2] == l1[-4] and l1[-3] == l1[-5]:
                     flag_loop = True
     return flag_loop
+
+def count_word_in_sentence(sentence, word):
+    # Split the sentence into words
+    words = sentence.split()
+    
+    # Convert the words and the target word to lowercase for case insensitive comparison
+    word = word.lower()
+    words = [w.lower() for w in words]
+    
+    # Count the occurrences of the word
+    count = words.count(word)
+    return count

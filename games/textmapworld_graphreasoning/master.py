@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from backends import Model, CustomResponseModel
 from clemgame.clemgame import GameMaster, GameBenchmark, Player, DialogueGameMaster, GameScorer
 from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE
-from games.textmapworld_graphreasoning.utils import loop_identification, get_directions, string_available_directions, have_common_element, clear_utterance, get_nextnode_label, calculate_similarity, create_graph
+from games.textmapworld_graphreasoning.utils import loop_identification, get_directions, string_available_directions, have_common_element, clear_utterance, get_nextnode_label, calculate_similarity, create_graph, count_word_in_sentence
 from queue import Queue
 from copy import deepcopy
 from clemgame import get_logger
@@ -106,6 +106,8 @@ class PathDescriber(Player):
                     utterance = content
                     break
         validation =self.validate_answer(utterance)
+        if self.directions_next_node == None:
+            return "Game needs to be aborted"
         current_location = self.current_node
         if self.ambiguity != None:
             current_location = self.current_node.split("_")[0] #because if there is ambiguity, the node is saved as "Kitchen_(1,2)"
@@ -215,13 +217,23 @@ class Graphreasoning(DialogueGameMaster):
                 self.invalid_response = True
                 return False
             else:
-                if not answer['Action'].startswith(self.move_construction) and not self.stop_construction.lower() in answer['Action'].lower():
+                count_go = count_word_in_sentence(utterance.lower(), self.move_construction.lower())
+                if count_go > 1:
+                    self.invalid_response = True
+                    return False
+                elif not answer['Action'].startswith(self.move_construction) and not self.stop_construction.lower() in answer['Action'].lower():
                     self.invalid_response = True
                     return False
                 else:
                     if self.stop_construction.lower() in answer['Action'].lower():
                         self.game_stop = True
                         return False
+                    
+        if player == self.describer:
+            if utterance == "Game needs to be aborted":
+                self.invalid_response = True
+                return False
+            
         return True
 
 

@@ -5,7 +5,7 @@ import ast
 from backends import Model, CustomResponseModel
 from clemgame.clemgame import GameMaster, GameBenchmark, Player, DialogueGameMaster, GameScorer
 from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE
-from games.textmapworld.utils import loop_identification, get_directions, string_available_directions, have_common_element, clear_utterance, get_nextnode_label
+from games.textmapworld.utils import loop_identification, get_directions, string_available_directions, have_common_element, clear_utterance, get_nextnode_label, count_word_in_sentence
 from queue import Queue
 from copy import deepcopy
 from clemgame import get_logger
@@ -100,6 +100,8 @@ class PathDescriber(Player):
                     utterance = content
                     break
         validation =self.validate_answer(utterance)
+        if self.directions_next_node == None:
+            return "Game needs to be aborted"
         current_location = self.current_node
         if self.ambiguity != None:
             current_location = self.current_node.split("_")[0] ##because if there is ambiguity, the node is saved as "Kitchen_(1,2)"
@@ -196,12 +198,20 @@ class Textmapworld(DialogueGameMaster):
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
 
         if player == self.guesser:
+            count_go = count_word_in_sentence(utterance.lower(), self.move_construction.lower())
+            if count_go > 1:
+                self.invalid_response = True
+                return False
             if not utterance.startswith(self.move_construction) and not self.stop_construction.lower() in utterance.lower():
                 self.invalid_response = True
                 return False
             if self.stop_construction.lower() in utterance.lower():
                 self.game_stop = True
-
+            
+        if player == self.describer:
+            if utterance == "Game needs to be aborted":
+                self.invalid_response = True
+                return False
         return True
 
 

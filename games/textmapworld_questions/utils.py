@@ -148,3 +148,15 @@ def calculate_distance(nodes, edges, node1, node2):
         return distance
     except nx.NetworkXNoPath:
         return "No path exists between the nodes"
+    
+def count_word_in_sentence(sentence, word):
+    # Split the sentence into words
+    words = sentence.split()
+    
+    # Convert the words and the target word to lowercase for case insensitive comparison
+    word = word.lower()
+    words = [w.lower() for w in words]
+    
+    # Count the occurrences of the word
+    count = words.count(word)
+    return count

@@ -157,6 +157,7 @@ def create_graph(nodes, edges, type):
     G.add_edges_from(edges)
     return G
 
+    
 def normalize(distance):
     normalized_distance = 1 / (1 + np.exp(-0.5 * distance))
     return normalized_distance
@@ -166,3 +167,15 @@ def calculate_similarity(graph1, graph2):
     normalized_distance = normalize(distance)
     similarity = 1 - normalized_distance
     return similarity
+
+def count_word_in_sentence(sentence, word):
+    # Split the sentence into words
+    words = sentence.split()
+    
+    # Convert the words and the target word to lowercase for case insensitive comparison
+    word = word.lower()
+    words = [w.lower() for w in words]
+    
+    # Count the occurrences of the word
+    count = words.count(word)
+    return count

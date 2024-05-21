@@ -164,3 +164,15 @@ def select_nodes_at_distances(G, initial_position, max_distance):
         else:
             print(f"No nodes found at distance {distance} from {initial_position}")
     return chosen_nodes
+
+def count_word_in_sentence(sentence, word):
+    # Split the sentence into words
+    words = sentence.split()
+    
+    # Convert the words and the target word to lowercase for case insensitive comparison
+    word = word.lower()
+    words = [w.lower() for w in words]
+    
+    # Count the occurrences of the word
+    count = words.count(word)
+    return count
