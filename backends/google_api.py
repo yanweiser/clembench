@@ -132,7 +132,7 @@ class GoogleModel(backends.Model):
         response_text = ''
         response_json = {}
         if response.parts:
-            response_text = response.text
+            response_text = response.text.strip()
             response_json = {"text": response_text}
 
         if response_text == '':
