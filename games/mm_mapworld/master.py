@@ -303,14 +303,13 @@ class MmMapWorld(DialogueGameMaster):
             if "image" in history[i]:
                 del history[i]['image']
 
-    # def add_message(self, player: Player, utterance: str, role: str, image = None):
-    #     if image is None:
-    #         message = {"role": role, "content": utterance}
-    #     else:
-    #         message = {"role": role, "content": utterance, "image": image}
-    #         self.remove_previous_images(player)
-    #     history = self.messages_by_names[player.descriptor]
-    #     history.append(message)
+    def add_message(self, player: Player, utterance: str, role: str, image = None):
+        if image is None:
+            message = {"role": role, "content": utterance}
+        else:
+            message = {"role": role, "content": utterance, "image": image}
+        history = self.messages_by_names[player.descriptor]
+        history.append(message)
 
     def add_user_message(self, player: Player, utterance: str, image = None):
         self.remove_previous_images(player)
