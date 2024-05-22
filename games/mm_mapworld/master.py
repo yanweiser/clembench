@@ -104,10 +104,10 @@ class PathDescriber(Player):
                 response = self.invalid_response.replace("$DIRECTIONS$", ", ".join(available_directions))
             else:
                 response = self.success_response.replace("$DIRECTIONS$", ", ".join(available_directions))
-            if self.detect_loop() and self.use_loop_warning:
-                response = self.loop_response + response
-            if turn_idx == (MAX_TURNS - 1) and self.use_turn_limit_warning:
-                response = self.limit_warning + response
+            # if self.detect_loop() and self.use_loop_warning:
+            #     response = self.loop_response + response
+            # if turn_idx == (MAX_TURNS - 1) and self.use_turn_limit_warning:
+            #     response = self.limit_warning + response
         return response
 
         

@@ -23,7 +23,7 @@ TEMP_IMAGE_PATH = os.path.join("games", "mm_mapworld_graphs", "resources", "imag
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
 GRAPH_REGEX = "\"graph\":\s*(\{\s*\"nodes\"\s*:\s*\[.*\]\s*,\s*\"edges\"\s*:\s*\{.*\})\s*\}"
-RESPONSE_REGEX = "\{[\s]*\"action\":\s*\"([^\{]*?)\"\s*,\s*\"description\":\s*\"([^\{]*?)\"[\s]*,\s*"
+RESPONSE_REGEX = "^\{[\s]*\"action\":\s*\"([^\{]*?)\"\s*,\s*\"description\":\s*\"([^\{]*?)\"[\s]*,\s*"
 RESPONSE_REGEX += GRAPH_REGEX
 
 DONE_REGEX = 'DONE'
