@@ -58,16 +58,14 @@ def load_instance(instance):
     loaded_imgs = load_imgs(instance['imgs'])
     loaded_cats = load_cats(instance['cats'])
     loaded_start = load_start(instance['start'])
-    loaded_target = load_start(instance['target'])
     
     return {
         'nodes': loaded_nodes,
         'edges': loaded_edges,
         'imgs': loaded_imgs,
         'start': loaded_start,
-        'cats': loaded_cats,
-        'target': loaded_target
-    }
+        'cats': loaded_cats
+        }
     
 def edge_to_delta(edge):
         dx = edge[1][0] - edge[0][0]

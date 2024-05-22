@@ -6,6 +6,7 @@ import random
 import json
 import networkx as nx
 from copy import deepcopy
+import shutil
 
 
 # set the name of the game in the script, as you named the directory
@@ -22,10 +23,12 @@ IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
 # The dataset annotation is in english, making the language agnostic is going to be more challenging
 MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
 DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "needed_imgs")
-RESPONSE_REGEX = "\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}"
+TEMP_IMAGE_PATH = os.path.join("games", "mm_mapworld_qa", "resources", "images")
+RESPONSE_REGEX = "^\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}"
 MOVE_CONSTRUCTION = "GO: "
 FOUND_REGEX = "DONE"
 MOVE_REGEX = "GO:\s*(north|east|south|west)"
+QA_REGEX = "Answer:\s*(\d+)"
 
 
 
@@ -40,7 +43,9 @@ def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], n
         edges = list(map.G.edges())
         rev_edges = [(edge[1], edge[0]) for edge in edges]
         edges.extend(rev_edges)
-        img_ref, cat_ref = assign_images(nodes, ambiguity)
+        index = np.random.randint(len(ambiguity))
+        this_ambiguity = ambiguity[index]
+        img_ref, cat_ref, questions = assign_images(nodes, this_ambiguity)
         instances.append({
             'nodes': nodes,
             'edges': [str(e) for e in edges],
@@ -50,7 +55,9 @@ def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['medium'], n
             'use_images': True,
             'reprompt': False,
             'use_loop_warning': True,
-            'use_turn_limit_warning': True
+            'use_turn_limit_warning': True,
+            'questions': questions,
+            'ambiguity': this_ambiguity
         })
     return instances
 
@@ -61,11 +68,12 @@ def assign_images(nodes, ambiguity, num_targets = 1):
     cats = mapping.keys()
     # outdoor images don't make too much sense for rooms in a house
     cats_inside = [cat for cat in cats if 'outdoor' not in cat]
-    num_cats_needed = len(nodes) - (ambiguity[0] * max([(ambiguity[1] - 1), 0]))
-    chosen_cats = np.random.choice(cats_inside, size = num_cats_needed)
+    num_cats_needed = len(nodes) - (ambiguity[0] * (ambiguity[1] - 1))
+    chosen_cats = np.random.choice(cats_inside, size = num_cats_needed, replace = False)
     # make sure the decoy category does not exist on the graph
     for c in chosen_cats:
         cats_inside.remove(c)
+    chosen_cats = list(chosen_cats)
     # choose it randomly from the rest of the categories
     decoy = np.random.choice(cats_inside)
     imgs = {}
@@ -81,22 +89,26 @@ def assign_images(nodes, ambiguity, num_targets = 1):
         chosen_cats[1].split("/")[1]: nodes_per_cat[chosen_cats[1]],
         decoy.split("/")[1]: 0,
     }
+    questions = []
+    for target in targets:
+        questions.append({"q": f"How many different {target.replace('_', ' ')}(s) did we encounter?", "a": str(targets[target])})
     nodes_copy = deepcopy(nodes)
     for c in chosen_cats:
-        chosen_nodes = list(np.random.choice(nodes_copy, size=nodes_per_cat[c]))
+        chosen_nodes = list(np.random.choice(nodes_copy, size=nodes_per_cat[c], replace = False))
         chosen_imgs = np.random.choice(mapping[c], size=nodes_per_cat[c])
         for i in range(len(chosen_nodes)):
-            imgs[chosen_nodes[i]] = os.path.join(DATASET_PATH, chosen_imgs[i])
+            after_copy_path = copy_image(os.path.join(DATASET_PATH, chosen_imgs[i]))
+            imgs[chosen_nodes[i]] = after_copy_path
             cat_mapping[chosen_nodes[i]] = c.split("/")[1]
             nodes_copy.remove(chosen_nodes[i])
-    return imgs, cat_mapping
+    return imgs, cat_mapping, questions
     
 
 def instance_from_args(args, prompts):
     instances = create_instances(
         grid_size=GRIDS[args.get('size', 'large')],
         graph_size=SIZES[args.get('size', 'large')],
-        goal_dist=DISTS[args.get('dist', 'medium')],
+        ambiguity=AMBIGUITIES[args.get('ambiguity', 'limited')],
         num_instances=args.get('num_instances', NUM_INSTANCES)
     )
     for i in range(len(instances)):
@@ -111,9 +123,21 @@ def instance_from_args(args, prompts):
         instances[i]["reprompt_format"] = prompts["reprompt_format"]
         instances[i]["limit_warning"] = prompts["limit_warning"]
         instances[i]["loop_warning"] = prompts["loop_warning"]
+        instances[i]["qa_init"] = prompts["init_qa"]
         
     return instances      
         
+def prep_image_dir():
+    if os.path.exists(TEMP_IMAGE_PATH):
+        shutil.rmtree(TEMP_IMAGE_PATH)
+    os.makedirs(TEMP_IMAGE_PATH)
+    
+def copy_image(image_path):
+    filename = os.path.split(image_path)[1]
+    src = image_path
+    tgt = os.path.join(TEMP_IMAGE_PATH, filename)
+    shutil.copy(src, tgt)
+    return tgt
 
 class MmMapWorldQAInstanceGenerator(GameInstanceGenerator):
     def __init__(self):
@@ -128,13 +152,16 @@ class MmMapWorldQAInstanceGenerator(GameInstanceGenerator):
             'reprompt_format': self.load_template('resources/reprompts/invalid_format.template'),
             'limit_warning': self.load_template('resources/later_prompts/turn_limit.template'),
             'loop_warning': self.load_template('resources/later_prompts/loop.template'),
+            'init_qa': self.load_template('resources/qa_prompts/init.template'),
+            'question_qa': self.load_template('resources/qa_prompts/question.template'),
         }
         experiments = {
-            'on': {"dist": "on", "one_shot": True, "reprompt": False},
-            'close': {"dist": "close", "one_shot": True, "reprompt": False},
-            'far': {"dist": "far", "one_shot": True, "reprompt": False}
+            'none': {"ambiguity": "none", "one_shot": True, "reprompt": False},
+            'limited': {"ambiguity": "limited", "one_shot": True, "reprompt": False},
+            'strong': {"ambiguity": "strong", "one_shot": True, "reprompt": False}
         }
 
+        prep_image_dir()
         for exp in experiments.keys():
              experiment = self.add_experiment(exp)
              game_id = 0
@@ -147,6 +174,7 @@ class MmMapWorldQAInstanceGenerator(GameInstanceGenerator):
                  instance["done_regex"] = FOUND_REGEX
                  instance["move_regex"] = MOVE_REGEX
                  instance["response_regex"] = RESPONSE_REGEX
+                 instance["qa_regex"] = QA_REGEX
                  game_id += 1
 
 if __name__ == '__main__':

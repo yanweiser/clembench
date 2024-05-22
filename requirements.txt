@@ -5,6 +5,7 @@ nltk==3.8.1 # Taboo
 spacy==3.7.4 # Taboo
 Levenshtein==0.25.0 # reference
 tiktoken==0.4.0 # Wordle
+networkx==3.3
 # Evaluation
 scikit-learn==1.2.2
 matplotlib==3.7.1

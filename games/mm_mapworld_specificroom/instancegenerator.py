@@ -5,6 +5,7 @@ import os
 import random
 import json
 import networkx as nx
+import shutil
 
 
 # set the name of the game in the script, as you named the directory
@@ -20,7 +21,8 @@ IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
 # The dataset annotation is in english, making the language agnostic is going to be more challenging
 MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
 DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "needed_imgs")
-RESPONSE_REGEX = "\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}"
+TEMP_IMAGE_PATH = os.path.join("games", "mm_mapworld_specificroom", "resources", "images")
+RESPONSE_REGEX = "^\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}"
 MOVE_CONSTRUCTION = "GO: "
 FOUND_REGEX = "DONE"
 MOVE_REGEX = "GO:\s*(north|east|south|west)"
@@ -78,7 +80,8 @@ def assign_images(nodes, target, num_targets = 1):
             continue
         node_cat = np.random.choice(cats_inside)
         node_img = np.random.choice(mapping[node_cat])
-        imgs[node] = os.path.join(DATASET_PATH, node_img)
+        after_copy_path = copy_image(os.path.join(DATASET_PATH, node_img))
+        imgs[node] = after_copy_path
         cat_mapping[node] = node_cat.split("/")[1]
     return imgs, cat_mapping
     
@@ -103,7 +106,19 @@ def instance_from_args(args, prompts):
         instances[i]["limit_warning"] = prompts["limit_warning"]
         instances[i]["loop_warning"] = prompts["loop_warning"]
         
-    return instances      
+    return instances   
+
+def prep_image_dir():
+    if os.path.exists(TEMP_IMAGE_PATH):
+        shutil.rmtree(TEMP_IMAGE_PATH)
+    os.makedirs(TEMP_IMAGE_PATH)
+    
+def copy_image(image_path):
+    filename = os.path.split(image_path)[1]
+    src = image_path
+    tgt = os.path.join(TEMP_IMAGE_PATH, filename)
+    shutil.copy(src, tgt)
+    return tgt   
         
 
 class MmMapWorldInstanceGenerator(GameInstanceGenerator):
@@ -126,6 +141,7 @@ class MmMapWorldInstanceGenerator(GameInstanceGenerator):
             'far': {"dist": "far", "one_shot": True, "reprompt": False}
         }
 
+        prep_image_dir()
         for exp in experiments.keys():
              experiment = self.add_experiment(exp)
              game_id = 0
