@@ -528,7 +528,10 @@ class MM_MapWorldGraphsScorer(GameScorer):
             self.log_episode_score('effieciency', eff)
             exp = 100*len(visited)/len(self.nodes)
             self.log_episode_score('exploration', exp)
-            self.log_episode_score(BENCH_SCORE, (2*exp*eff)/(eff+exp))
+            if not exp and not eff:
+                self.log_episode_score(BENCH_SCORE, 0)
+            else:
+                self.log_episode_score(BENCH_SCORE, (2*exp*eff)/(eff+exp))
             
         
 

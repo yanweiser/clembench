@@ -504,8 +504,11 @@ class MM_MapWorldQAScorer(GameScorer):
             self.log_episode_score('efficiency', eff)
             qa = (sum(correct)/len(correct))
             self.log_episode_score('question_answering', qa)
-            h_mean = 3/((1/eff)+(1/exp)+(1/qa))
-            self.log_episode_score(BENCH_SCORE, 100*h_mean)
+            if not eff or not exp or not qa:
+                self.log_episode_score(BENCH_SCORE, 0)
+            else:
+                h_mean = 3/((1/eff)+(1/exp)+(1/qa))
+                self.log_episode_score(BENCH_SCORE, 100*h_mean)
 
 
     def plot_path(self, path):
