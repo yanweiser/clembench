@@ -21,7 +21,7 @@ cycle_type="cycle_false" #"cycle_true" or "cycle_false"
 stop_construction = "DONE"
 move_construction = "GO:"
 loop_reminder = False
-max_turns_reminder = True
+max_turns_reminder = False
 ambiguity_types =  {"none": [None], "limited": [(2,2), (1,2)], "strong": [(1,3), (2,3), (3,2)]}
 
 "°°°°°°°imported parameters°°°°°°°"
@@ -95,6 +95,7 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                     game_instance["Second_Question_Answer"] = str((sorted_items[1][0],sorted_items[1][1]))
                     game_instance["Third_Question_Answer"] = str((random_choice ,0))
                     game_instance["Question_reprompt"] = str(reminders_file["question_rule"])
+                    game_instance["Mapping"] = str(grid["Mapping"])
                     
                         
 

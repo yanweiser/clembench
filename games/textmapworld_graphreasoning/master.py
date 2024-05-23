@@ -346,6 +346,8 @@ class GraphGameScorer(GameScorer):
         for turn in episode_interactions["turns"]:
             for event in turn:
                 action = event["action"]
+                if action["type"] == "non_processable":
+                    self.non_processable = True
                 if action["type"] == "aborted":
                     if action["content"]:
                         aborted = True
@@ -373,12 +375,16 @@ class GraphGameScorer(GameScorer):
                         loops.clear()
 
                 if action['type'] == "graph":
-                    cont = ast.literal_eval(action['content'])
-                    G1= create_graph(self.nodes, self.old_edges, "original")
-                    G2= create_graph(cont['nodes'], cont['edges'], "generated")
-                    similarity_percent = calculate_similarity(G1, G2)*100
-                    graphs_similarity.append(similarity_percent)
-                    graphs.append(cont)
+                    try:
+                        cont = ast.literal_eval(action['content'])
+                        G1= create_graph(self.nodes, self.old_edges, "original")
+                        G2= create_graph(cont['nodes'], cont['edges'], "generated")
+                        similarity_percent = calculate_similarity(G1, G2)*100
+                        graphs_similarity.append(similarity_percent)
+                        graphs.append(cont)
+                    except:
+                        graphs_similarity.append(0)
+
 
                 if action['type'] == "stop":
                     if action["content"]:
@@ -411,20 +417,21 @@ class GraphGameScorer(GameScorer):
                     self.log_episode_score(METRIC_ABORTED, 0)
                     self.log_episode_score(METRIC_LOSE, 1)
                     
-        exploration = (len(visited)/len(self.nodes))*100
-        efficiency = (sum(good_move)/len(good_move))*100
+        #if nominator and denominator are 0, the result is NaN 
+        exploration = (len(visited) / len(self.nodes) * 100) if len(self.nodes) else 0
+        efficiency = (sum(good_move) / len(good_move) * 100) if good_move else 0
+        bench_score = (2 * efficiency * exploration / (efficiency + exploration)) if (efficiency+exploration) else 0
         self.log_episode_score('moves', valid_moves + invalid_moves if stopped else np.NaN)
         self.log_episode_score('valid_moves', valid_moves if stopped else np.NaN)
-        self.log_episode_score('invalid_moves', invalid_moves if stopped else np.NaN)
+        self.log_episode_score('invalid_moves', invalid_moves if stopped else np.NaN) 
         self.log_episode_score('stopped', int(stopped) if stopped else np.NaN)
         self.log_episode_score('turns_limit', int(turns_limit_reached) if stopped else np.NaN)
         self.log_episode_score('loops', count_loops if stopped else np.NaN)
         self.log_episode_score('number_visited', len(visited) if stopped else np.NaN)
         self.log_episode_score('seen', len(seen) if stopped else np.NaN)
-        self.log_episode_score('Graph similarity', graphs_similarity[-1] if stopped else np.NaN)
         self.log_episode_score('efficiency', efficiency  if stopped else np.NaN)
         self.log_episode_score('exploration', exploration  if stopped else np.NaN)
-        self.log_episode_score(BENCH_SCORE, (2*efficiency*exploration)/(efficiency+exploration) if stopped else np.NaN)
+        self.log_episode_score(BENCH_SCORE, bench_score if stopped else np.NaN)
 
 
 class GraphGameBenchmark(GameBenchmark):

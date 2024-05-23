@@ -386,5 +386,5 @@ class GraphGenerator:
                     each_move.append((movement[0], change))
                     renamed_moves_nodes_list.append({"node": renamed_node, "node_moves":each_move})
             
-            graph_dict= {"Picture_Name":picture_name, "Graph_Type": self.graph_type, "Grid_Dimension": str(self.n), "Graph_Nodes":renamed_nodes, "Graph_Edges":renamed_edges , "N_edges": len(list(self.G.edges())) , "Initial_Position": self.random_room, "Directions": renamed_graph_directions , "Moves": renamed_moves_nodes_list ,"Cycle":self.cycle, 'Ambiguity': self.ambiguity}
+            graph_dict= {"Picture_Name":picture_name, "Graph_Type": self.graph_type, "Grid_Dimension": str(self.n), "Graph_Nodes":renamed_nodes, "Graph_Edges":renamed_edges , "N_edges": len(list(self.G.edges())) , "Initial_Position": self.random_room, "Directions": renamed_graph_directions , "Moves": renamed_moves_nodes_list ,"Cycle":self.cycle, 'Ambiguity': self.ambiguity, "Mapping": self.node_label_mapping}
         return  graph_dict

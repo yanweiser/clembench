@@ -58,6 +58,7 @@ class PathDescriber(Player):
         self.second_question = ast.literal_eval(game_instance["Second_Question_Answer"])
         self.third_question = ast.literal_eval(game_instance["Third_Question_Answer"])
         self.asked=0
+        self.reprompt_added = 0
 
 
     def check_path_answer(self, utterance: str, directions: List[str], node, saved_node) -> List[Dict]:
@@ -140,7 +141,11 @@ class PathDescriber(Player):
             elif self.asked == 3:
                 question = question.replace("$ROOM_CATEGORY$", self.third_question[0])
             if self.asked <= 3:
-                utterance = self.question_reprompt + " " + question
+                if self.reprompt_added < 1:
+                    utterance = self.question_reprompt + " " + question
+                    self.reprompt_added += 1
+                else:
+                    utterance = question
         return utterance
 
 
@@ -438,11 +443,14 @@ class GraphGameScorer(GameScorer):
                     self.log_episode_score(METRIC_ABORTED, 0)
                     self.log_episode_score(METRIC_LOSE, 1)
 
-        exploration = (len(visited)/len(self.nodes))*100
-        efficiency = (sum(good_move)/len(good_move))*100
-        base_score= (2*efficiency*exploration)/(efficiency+exploration)
-        questions_score = (sum(answers_model)/len(answers_model))*100
-        harmonic_score =  3/((1/efficiency)+(1/exploration)+(1/questions_score))
+        exploration = (len(visited) / len(self.nodes) * 100) if len(self.nodes) else 0
+        efficiency = (sum(good_move) / len(good_move) * 100) if good_move else 0
+        bench_score = (2 * efficiency * exploration / (efficiency + exploration)) if (efficiency+exploration) else 0
+        questions_score = (sum(answers_model)/len(answers_model))*100  if len(answers_model) else 0
+        if efficiency == 0 or exploration == 0 or questions_score == 0:
+            harmonic_score = 0
+        else:
+            harmonic_score = 3 / ((1 / efficiency) + (1 / exploration) + (1 / questions_score))
         self.log_episode_score('moves', valid_moves + invalid_moves if stopped else np.NaN)
         self.log_episode_score('valid_moves', valid_moves if stopped else np.NaN)
         self.log_episode_score('invalid_moves', invalid_moves if stopped else np.NaN) 
@@ -453,8 +461,7 @@ class GraphGameScorer(GameScorer):
         self.log_episode_score('seen', len(seen) if stopped else np.NaN)
         self.log_episode_score('efficiency', efficiency  if stopped else np.NaN)
         self.log_episode_score('exploration', exploration  if stopped else np.NaN)
-        self.log_episode_score('base_score', base_score if stopped else np.NaN)
-        self.log_episode_score('questions_list',str(answers_model) if stopped else np.NaN)
+        self.log_episode_score('base_score', bench_score if stopped else np.NaN)
         self.log_episode_score('questions_score', questions_score if stopped else np.NaN)
         self.log_episode_score(BENCH_SCORE, harmonic_score  if stopped else np.NaN)
 

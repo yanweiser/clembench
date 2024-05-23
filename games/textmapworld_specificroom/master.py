@@ -375,8 +375,9 @@ class GraphGameScorer(GameScorer):
                     self.log_episode_score(METRIC_ABORTED, 0)
                     self.log_episode_score(METRIC_LOSE, 1)
 
-        exploration = (len(visited)/len(self.nodes))*100
-        efficiency = (sum(good_move)/len(good_move))*100
+        exploration = (len(visited) / len(self.nodes) * 100) if len(self.nodes) else 0
+        efficiency = (sum(good_move) / len(good_move) * 100) if good_move else 0
+        bench_score = (2 * efficiency * exploration / (efficiency + exploration)) if (efficiency+exploration) else 0
         self.log_episode_score('moves', valid_moves + invalid_moves if stopped else np.NaN)
         self.log_episode_score('valid_moves', valid_moves if stopped else np.NaN)
         self.log_episode_score('invalid_moves', invalid_moves if stopped else np.NaN) 
@@ -387,7 +388,7 @@ class GraphGameScorer(GameScorer):
         self.log_episode_score('seen', len(seen) if stopped else np.NaN)
         self.log_episode_score('efficiency', efficiency  if stopped else np.NaN)
         self.log_episode_score('exploration', exploration  if stopped else np.NaN)
-        self.log_episode_score('old_benchscore', (2*efficiency*exploration)/(efficiency+exploration) if stopped else np.NaN)
+        self.log_episode_score('old_benchscore', bench_score if stopped else np.NaN)
         self.log_episode_score(BENCH_SCORE, success if stopped else np.NaN)
 
 class GraphGameBenchmark(GameBenchmark):

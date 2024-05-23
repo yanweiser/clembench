@@ -18,7 +18,7 @@ m = 4
 instance_number = 10
 ambiguity= None 
 loop_reminder = False
-max_turns_reminder = True
+max_turns_reminder = False
 experiments_details = {"small": (4,"cycle_false"), "medium": (6, "cycle_false"), "large": (8, "cycle_false"), "medium_cycle": (6, "cycle_true"), "large_cycle": (8, "cycle_true")}
 
 "°°°°°°°imported parameters°°°°°°°"
@@ -77,6 +77,8 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                 game_instance["Loop_Reminder_Text"] = reminders_file["loop_reminder"]
                 game_instance["Max_Turns_Reminder"] = max_turns_reminder
                 game_instance["Max_Turns_Reminder_Text"] = reminders_file["max_turns_reminder"]
+                game_instance["Mapping"]= str(instance['cats'])
+
 
 
 if __name__ == '__main__':

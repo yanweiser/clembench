@@ -121,9 +121,6 @@ class PathDescriber(Player):
     
 
 class Textmapworld(DialogueGameMaster):
-    """
-    This class implements a graph traversal game in which player A (DecisionMaker). 
-    """
 
     def __init__(self, experiment: Dict, player_models : List[Model]):
         super().__init__(GAME_NAME, experiment, player_models)
@@ -135,7 +132,6 @@ class Textmapworld(DialogueGameMaster):
         self.limit_reached = False
 
     def _on_setup(self, **game_instance):
-
         logger.info("_on_setup")
         self.graph_type = game_instance['Game_Type']
         self.initial_position = game_instance["Current_Position"] if self.graph_type=="named_graph" else ast.literal_eval(game_instance["Current_Position"])
@@ -172,7 +168,6 @@ class Textmapworld(DialogueGameMaster):
 
     def _does_game_proceed(self):
 
-        "Proceed untill all nodes arent visited"
         if self.invalid_response:
             self.log_to_self("aborted", "abort game")
             return False
@@ -216,8 +211,6 @@ class Textmapworld(DialogueGameMaster):
 
 
     def _after_add_player_response(self, player: Player, utterance: str):
-        """Add the utterance to other player's history, if necessary.
-        To do this use the method add_user_message(other_player,utterance)."""
 
         if player == self.guesser:
             self.add_user_message(self.describer, utterance)
@@ -235,6 +228,7 @@ class Textmapworld(DialogueGameMaster):
 
 
     def _on_after_turn(self, turn_idx: int):
+
         turn_dict= self.describer.turn_information()
         old_node = turn_dict["from"]
         new_node = turn_dict["to"]
@@ -375,8 +369,10 @@ class GraphGameScorer(GameScorer):
                     self.log_episode_score(METRIC_ABORTED, 0)
                     self.log_episode_score(METRIC_LOSE, 1)
 
-        exploration = (len(visited)/len(self.nodes))*100
-        efficiency = (sum(good_move)/len(good_move))*100
+        #if nominator and denominator are 0, the result is NaN 
+        exploration = (len(visited) / len(self.nodes) * 100) if len(self.nodes) else 0
+        efficiency = (sum(good_move) / len(good_move) * 100) if good_move else 0
+        bench_score = (2 * efficiency * exploration / (efficiency + exploration)) if (efficiency+exploration) else 0
         self.log_episode_score('moves', valid_moves + invalid_moves if stopped else np.NaN)
         self.log_episode_score('valid_moves', valid_moves if stopped else np.NaN)
         self.log_episode_score('invalid_moves', invalid_moves if stopped else np.NaN) 
@@ -387,7 +383,7 @@ class GraphGameScorer(GameScorer):
         self.log_episode_score('seen', len(seen) if stopped else np.NaN)
         self.log_episode_score('efficiency', efficiency  if stopped else np.NaN)
         self.log_episode_score('exploration', exploration  if stopped else np.NaN)
-        self.log_episode_score(BENCH_SCORE, (2*efficiency*exploration)/(efficiency+exploration) if stopped else np.NaN)
+        self.log_episode_score(BENCH_SCORE, bench_score if stopped else np.NaN)
 
 
 class GraphGameBenchmark(GameBenchmark):

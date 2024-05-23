@@ -20,7 +20,7 @@ ambiguity= None #(repetition_rooms, repetition_times) or None
 stop_construction = "DONE"
 move_construction = "GO:"
 loop_reminder = False
-max_turns_reminder = True
+max_turns_reminder = False
 experiments = {"small": (4,"cycle_false"), "medium": (6, "cycle_false"), "large": (8, "cycle_false"), "medium_cycle": (6, "cycle_true"), "large_cycle": (8, "cycle_true")}
 
 "°°°°°°°imported parameters°°°°°°°"
@@ -83,6 +83,7 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                     game_instance["Loop_Reminder_Text"] = reminders_file["loop_reminder"]
                     game_instance["Max_Turns_Reminder"] = max_turns_reminder
                     game_instance["Max_Turns_Reminder_Text"] = reminders_file["max_turns_reminder"]
+                    game_instance["Mapping"] = str(grid["Mapping"])
                     game_id += 1
 
                         

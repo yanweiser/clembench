@@ -232,6 +232,7 @@ class Textmapworld(DialogueGameMaster):
             if self.maxturns_parameter and  self.current_turn == self.max_turns-2:
                 self.maxturns_parameter = False
                 utterance = self.max_turns_reprompting +"\n"+utterance
+                self.log_to_self("maxturns_reminder", "The model was reminded about the maximum number of turns")
             self.add_user_message(self.guesser, utterance)
 
                 
@@ -261,7 +262,7 @@ class GraphGameScorer(GameScorer):
         new_edges = [(edge[1], edge[0]) for edge in old_edges]
         new_edges.extend(old_edges)
         self.edges = new_edges
-        self.start = game_instance["Current_Position"] if self.game_type=="named_graph" else ast.literal_eval(game_instance["Current_Position"])
+        self.start = game_instance["Current_Position"] 
         
     
     def visited_all(self, visited, to_visit):
@@ -377,8 +378,10 @@ class GraphGameScorer(GameScorer):
                     self.log_episode_score(METRIC_ABORTED, 0)
                     self.log_episode_score(METRIC_LOSE, 1)
 
-        exploration = (len(visited)/len(self.nodes))*100
-        efficiency = (sum(good_move)/len(good_move))*100
+        #if nominator and denominator are 0, the result is NaN 
+        exploration = (len(visited) / len(self.nodes) * 100) if len(self.nodes) else 0
+        efficiency = (sum(good_move) / len(good_move) * 100) if good_move else 0
+        bench_score = (2 * efficiency * exploration / (efficiency + exploration)) if (efficiency+exploration) else 0
         self.log_episode_score('moves', valid_moves + invalid_moves if stopped else np.NaN)
         self.log_episode_score('valid_moves', valid_moves if stopped else np.NaN)
         self.log_episode_score('invalid_moves', invalid_moves if stopped else np.NaN) 
@@ -389,7 +392,7 @@ class GraphGameScorer(GameScorer):
         self.log_episode_score('seen', len(seen) if stopped else np.NaN)
         self.log_episode_score('efficiency', efficiency  if stopped else np.NaN)
         self.log_episode_score('exploration', exploration  if stopped else np.NaN)
-        self.log_episode_score(BENCH_SCORE, (2*efficiency*exploration)/(efficiency+exploration) if stopped else np.NaN)
+        self.log_episode_score(BENCH_SCORE, bench_score if stopped else np.NaN)
 
 
 class GraphGameBenchmark(GameBenchmark):

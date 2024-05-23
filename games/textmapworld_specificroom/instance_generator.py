@@ -23,7 +23,7 @@ ambiguity= None #(repetition_rooms, repetition_times) or None
 stop_construction = "DONE"
 move_construction = "GO:"
 loop_reminder = False
-max_turns_reminder = True
+max_turns_reminder = False
 distances = {"on": [0], "close": [1,2], "far": [3,4]}
 
 "°°°°°°°imported parameters°°°°°°°"
@@ -82,6 +82,7 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                     game_instance["Loop_Reminder_Text"] = reminders_file["loop_reminder"]
                     game_instance["Max_Turns_Reminder"] = max_turns_reminder
                     game_instance["Max_Turns_Reminder_Text"] = reminders_file["max_turns_reminder"]
+                    game_instance["Mapping"] = str(grid["Mapping"])
                     generated_graph = create_graph(grid["Graph_Nodes"], grid["Graph_Edges"])
                     dists = dict(nx.all_pairs_shortest_path_length(generated_graph))
                     random_distance = random.choice(value)
