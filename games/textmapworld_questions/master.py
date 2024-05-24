@@ -423,7 +423,10 @@ class GraphGameScorer(GameScorer):
                             answers_model.append(0)
 
         for i, val in enumerate(good_move):
-            self.log_turn_score(i, "effiencient_move", val)                
+            self.log_turn_score(i, "effiencient_move", val)  
+        if not aborted:     
+            for i, val in enumerate(answers_model):
+                self.log_turn_score(i, "questions_score", val)         
         if aborted:
             self.log_episode_score(METRIC_ABORTED, 1)
             self.log_episode_score(METRIC_SUCCESS, 0)
