@@ -3,6 +3,8 @@ from clemgame import metrics as ms
 from clemgame import get_logger
 from games.matchit.instancegenerator import GAME_NAME
 from backends import Model
+from nltk import word_tokenize, pos_tag
+from nltk.stem import WordNetLemmatizer
 
 from typing import List, Dict, Tuple
 
@@ -112,6 +114,10 @@ class MatchIt(DialogueGameMaster):
             return False
 
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
+        if not utterance.strip(): # check for empty message
+            self.log_to_self("invalid content", "abort, empty message")
+            self.aborted = True
+            return False
         utt_parts = list(filter(None, utterance.strip().split("\n"))) #filter to be sure that there are no empty strings
         first_word = utt_parts[0].split(" ")[0]
         # logger.info("first word = " + first_word)
@@ -262,7 +268,15 @@ class MatchIt(DialogueGameMaster):
 class MatchItScorer(GameScorer):
  
     def __init__(self, experiment: Dict, game_instance: Dict):
-        super().__init__(GAME_NAME, experiment, game_instance)        
+        super().__init__(GAME_NAME, experiment, game_instance)
+
+    
+    def calculate_type_token_relation(texta: list):
+        wnl = WordNetLemmatizer()
+        words = [wnl.lemmatize(i,j[0].lower()) if j[0].lower() in ['a','n','v'] else wnl.lemmatize(i) for i,j in pos_tag(word_tokenize(texta))]
+        print(words)
+        unique_words = set(words)
+        return len(unique_words) / len(words)       
 
     def compute_scores(self, episode_interactions: Dict) -> None:
 
@@ -321,6 +335,8 @@ class MatchItScorer(GameScorer):
                 elif action["type"] == "Decision Player B":
                     if action["content"] == "success":
                         success_b = True
+                elif action["type"] == "get message": #hier weitermachen
+                    model_answer = action["content"].split(" ")[1:]
 
             # log turn request scores   
             self.log_turn_score(turn_idx, ms.METRIC_REQUEST_COUNT_VIOLATED, turn_score_dict["violated_request_count"])
@@ -349,7 +365,7 @@ class MatchItScorer(GameScorer):
                     self.log_episode_score(ms.METRIC_SUCCESS, 0)
                     self.log_episode_score(ms.METRIC_LOSE, 1)
                     # Game-specific metrics
-                    self.log_episode_score(ms.BENCH_SCORE, 0)  # metric not applicable
+                    self.log_episode_score(ms.BENCH_SCORE, 0)
                 # only one decided correctly
                 elif success_a != success_b:
                     self.log_episode_score(ms.METRIC_ABORTED, 0)
@@ -359,12 +375,11 @@ class MatchItScorer(GameScorer):
                     self.log_episode_score(ms.BENCH_SCORE, 50)  # current decision, may change
 
                 else:   # = success_a and success_b:   
-                    #print("has been successful")
                     self.log_episode_score(ms.METRIC_ABORTED, 0)
                     self.log_episode_score(ms.METRIC_SUCCESS, 1)
                     self.log_episode_score(ms.METRIC_LOSE, 0)
                     # Game-specific metrics
-                    self.log_episode_score(ms.BENCH_SCORE, 100)  # metric not applicable
+                    self.log_episode_score(ms.BENCH_SCORE, 100)
 
             
 class MatchItBenchmark(GameBenchmark):
