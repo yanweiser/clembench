@@ -73,7 +73,8 @@ def assign_images(nodes, target, num_targets = 1):
     target_cat = np.random.choice(cats_inside)
     cats_inside.remove(target_cat)
     target_img = np.random.choice(mapping[target_cat])
-    imgs = {target: os.path.join(DATASET_PATH, target_img)}
+    after_copy_path = copy_image(os.path.join(DATASET_PATH, target_img))
+    imgs = {target: after_copy_path}
     cat_mapping = {target: target_cat.split("/")[1]}
     for node in nodes:
         if node == target:

@@ -34,7 +34,7 @@ class MatchItPlayer(Player):
         if "collaborative" in last_message:
             return f"DESCRIPTION: from Player {self.role}"
         elif "ask" in last_message:
-            return f"QUESTION: from Player {self.role}"
+            return "\n"#f"QUESTION: from Player {self.role}"
         elif "QUESTION" in last_message:
             return f"ANSWER: from Player {self.role}"
         elif "decision" in last_message:
@@ -112,6 +112,11 @@ class MatchItAscii(DialogueGameMaster):
             return False
 
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
+        if not utterance.strip(): # check for empty message
+            self.log_to_self("invalid content", "abort, empty message")
+            self.aborted = True
+            return False
+
         utt_parts = list(filter(None, utterance.strip().split("\n"))) #filter to be sure that there are no empty strings
         first_word = utt_parts[0].split(" ")[0]
         # logger.info("first word = " + first_word)
