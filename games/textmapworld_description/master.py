@@ -103,6 +103,8 @@ class PathDescriber(Player):
         validation =self.validate_answer(utterance)
         if self.directions_next_node == None:
             return "Game needs to be aborted"
+        if self.current_node == None:
+            return "Game needs to be aborted"
         current_location = self.descrtipion[self.current_node].lower()
         current_location = current_location[:-1] if current_location.endswith('.') else current_location
         if self.ambiguity != None:

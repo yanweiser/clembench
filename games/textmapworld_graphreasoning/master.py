@@ -108,6 +108,8 @@ class PathDescriber(Player):
         validation =self.validate_answer(utterance)
         if self.directions_next_node == None:
             return "Game needs to be aborted"
+        if self.current_node == None:
+            return "Game needs to be aborted"
         current_location = self.current_node
         if self.ambiguity != None:
             current_location = self.current_node.split("_")[0] #because if there is ambiguity, the node is saved as "Kitchen_(1,2)"
