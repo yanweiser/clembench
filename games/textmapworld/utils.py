@@ -69,7 +69,7 @@ def get_directions(node, direction_list, saved_node):
         node = saved_node
     node_directions = None  
     for i in direction_list:
-        if i[0]==node:
+        if i[0].lower()==node.lower():
             node_directions=i[1]
             break
     return node_directions
@@ -88,14 +88,9 @@ def have_common_element(str1, str2):
     return any(match in common_elements for match in common_matches)
 
 
-def clear_utterance(utterance, construction):
-    utterance = utterance.replace(construction, "")
-    utterance = string_utils.remove_punctuation(utterance)
-    return utterance
 
 def get_nextnode_label(moves, node, utterance, move_construction):
     next_label=None
-    utterance = clear_utterance(utterance, move_construction)
     utterance = utterance.strip()
     for move in moves:
         if move["node"]==node:

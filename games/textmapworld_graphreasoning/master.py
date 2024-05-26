@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 from backends import Model, CustomResponseModel
 from clemgame.clemgame import GameMaster, GameBenchmark, Player, DialogueGameMaster, GameScorer
 from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE
-from games.textmapworld_graphreasoning.utils import loop_identification, get_directions, string_available_directions, have_common_element, clear_utterance, get_nextnode_label, calculate_similarity, create_graph, count_word_in_sentence
+from games.textmapworld_graphreasoning.utils import loop_identification, get_directions, string_available_directions, have_common_element, get_nextnode_label, calculate_similarity, create_graph, count_word_in_sentence
 from queue import Queue
 from copy import deepcopy
 from clemgame import get_logger
+import re
 from clemgame import file_utils, string_utils
 import random
 GAME_NAME = "textmapworld_graphreasoning"
@@ -54,7 +55,6 @@ class PathDescriber(Player):
         self.visited_nodes.append(self.current_node)
 
     def check_path_answer(self, utterance: str, directions: List[str], node, saved_node) -> List[Dict]:
-        utterance = clear_utterance(utterance, self.move_construction)
         previous_direction = get_directions(node, directions, saved_node)
         previous_dirrection_changed =  string_available_directions(previous_direction) 
         previous_dirrection_no_pq = string_utils.remove_punctuation(previous_dirrection_changed)
@@ -98,12 +98,13 @@ class PathDescriber(Player):
         for message in messages[::-1]:
             if message["role"] == "user":
                 try:
-                    content = ast.literal_eval(message["content"])["Action"]
-                    self.graph_info = ast.literal_eval(message["content"])["Graph"]
+                    content =  ast.literal_eval(message["content"])["action"]
+                    self.graph_info =  ast.literal_eval(message["content"])["graph"]
                 except:
-                    print("Error in the content:", message["content"])
-                if content.startswith(self.move_construction): 
-                    utterance = content
+                    return "Game needs to be aborted"
+                move = re.search(self.move_construction, content, re.IGNORECASE)
+                if move: 
+                    utterance = move.group(1)
                     break
         validation =self.validate_answer(utterance)
         if self.directions_next_node == None:
@@ -150,6 +151,7 @@ class Graphreasoning(DialogueGameMaster):
         self.ambiguity = game_instance["Ambiguity"]
         self.move_construction =  game_instance["Move_Construction"] 
         self.stop_construction = game_instance["Stop_Construction"]
+        self.response_regex = game_instance["Response_Construction"]
 
         self.guesser = PathGuesser(self.player_models[0])
         self.describer = PathDescriber(CustomResponseModel(), game_instance)
@@ -204,38 +206,50 @@ class Graphreasoning(DialogueGameMaster):
         
         return True
 
+    def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
+
+        if player  == self.guesser:
+            utterance = utterance.replace("\n", "").strip()
+            if re.search(self.response_regex, utterance, re.IGNORECASE):
+                found = re.search(self.response_regex, utterance, re.IGNORECASE)
+            if found:
+                utterance = found.group()
+        return utterance, True
 
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
 
-        if player == self.guesser:
-            try:
-                answer =  ast.literal_eval(str(utterance))
-            except:
-                self.non_processable = True
-                self.invalid_response = True
-                return False
-            
-            if 'Graph' not in answer and 'Action' not in answer:
+        if player  == self.guesser:
+
+            utterance = utterance.replace("\n", "").strip()
+            first_filter = re.search( self.response_regex, utterance, re.IGNORECASE)
+            if not first_filter:
                 self.invalid_response = True
                 return False
             else:
-                count_go = count_word_in_sentence(utterance.lower(), self.move_construction.lower())
-                if count_go > 1:
+                action = first_filter.group(1)
+                action_stop = re.search(self.stop_construction, action, re.IGNORECASE)
+                action_move = re.search(self.move_construction, action, re.IGNORECASE)
+                if action_move and action_stop:
                     self.invalid_response = True
                     return False
-                elif not answer['Action'].startswith(self.move_construction) and not self.stop_construction.lower() in answer['Action'].lower():
+                if action_stop:
+                    self.game_stop = True
+                    return True
+                count_go =  re.findall(self.move_construction, action, re.IGNORECASE)
+                if len(count_go) > 1:
                     self.invalid_response = True
                     return False
-                else:
-                    if self.stop_construction.lower() in answer['Action'].lower():
-                        self.game_stop = True
-                        return False
-                    
+                if not action_move and not action_stop:
+                    self.invalid_response = True
+                    return False
+                if action_move:
+                    return True
+                
         if player == self.describer:
             if utterance == "Game needs to be aborted":
                 self.invalid_response = True
                 return False
-            
+        self.log_to_self("Valid format", "Continue")
         return True
 
 

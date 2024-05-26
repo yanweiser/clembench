@@ -90,14 +90,8 @@ def have_common_element(str1, str2):
     return any(match in common_elements for match in common_matches)
 
 
-def clear_utterance(utterance, construction):
-    utterance = utterance.replace(construction, "")
-    utterance = string_utils.remove_punctuation(utterance)
-    return utterance
-
 def get_nextnode_label(moves, node, utterance, move_construction):
     next_label=None
-    utterance = clear_utterance(utterance, move_construction)
     utterance = utterance.strip()
     for move in moves:
         if move["node"]==node:

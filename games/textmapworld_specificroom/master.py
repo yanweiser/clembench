@@ -1,11 +1,12 @@
 from typing import Dict, Tuple, List
 import json
 import numpy as np
+import re
 import ast
 from backends import Model, CustomResponseModel
 from clemgame.clemgame import GameMaster, GameBenchmark, Player, DialogueGameMaster, GameScorer
 from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE
-from games.textmapworld_specificroom.utils import loop_identification, get_directions, string_available_directions, have_common_element, clear_utterance, get_nextnode_label, count_word_in_sentence
+from games.textmapworld_specificroom.utils import loop_identification, get_directions, string_available_directions, have_common_element, get_nextnode_label, count_word_in_sentence
 from queue import Queue
 from copy import deepcopy
 from clemgame import get_logger
@@ -48,9 +49,8 @@ class PathDescriber(Player):
         self.visited_nodes.append(self.current_node)
 
 
-
     def check_path_answer(self, utterance: str, directions: List[str], node, saved_node) -> List[Dict]:
-        utterance = clear_utterance(utterance, self.move_construction)
+    
         previous_direction = get_directions(node, directions, saved_node)
         previous_dirrection_changed =  string_available_directions(previous_direction) 
         previous_dirrection_no_pq = string_utils.remove_punctuation(previous_dirrection_changed)
@@ -93,28 +93,32 @@ class PathDescriber(Player):
         for message in messages[::-1]:
             if message["role"] == "user":
                 content = message["content"]
-                if content.startswith(self.move_construction): 
-                    utterance = content
+                found = re.search(self.move_construction, content, re.IGNORECASE)
+                if found: 
+                    utterance = found.group(1).lower()
                     break
         validation =self.validate_answer(utterance)
-        current_location = self.current_node
         if self.directions_next_node == None:
             return "Game needs to be aborted"
         if self.current_node == None:
-                return "Game needs to be aborted"
+            return "Game needs to be aborted"
+        current_location = self.current_node
         if self.ambiguity != None:
             current_location = self.current_node.split("_")[0] ##because if there is ambiguity, the node is saved as "Kitchen_(1,2)"
         if validation != "not valid":
             positive_answer = self.positive_answer
             positive_answer = positive_answer.replace("$DIRECTIONS$", self.directions_next_node)
-            positive_answer = positive_answer.replace("$ANOTHER_ROOM$", current_location)
+            if self.graph_type == "named_graph":
+                positive_answer = positive_answer.replace("$ANOTHER_ROOM$", current_location)
             utterance = positive_answer
         else:
             negative_answer = self.negative_answer
             negative_answer = negative_answer.replace("$DIRECTIONS$", self.directions_next_node)
-            negative_answer = negative_answer.replace("$SAME_ROOM$", current_location)
+            if self.graph_type=="named_graph":
+                negative_answer = negative_answer.replace("$SAME_ROOM$", current_location)
             utterance = negative_answer
         return utterance
+
     
 
 class textmapworld_specificroom(DialogueGameMaster):
@@ -192,25 +196,46 @@ class textmapworld_specificroom(DialogueGameMaster):
             return False
         
         return True
+    
+    def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
 
+        if player  == self.guesser:
+            utterance = utterance.replace("\n", "").strip()
+            if re.search(self.stop_construction, utterance, re.IGNORECASE):
+                found = re.search(self.move_construction, utterance, re.IGNORECASE)
+            elif re.search(self.move_construction, utterance, re.IGNORECASE):
+                found = re.search(self.stop_construction, utterance, re.IGNORECASE)
+            if found:
+                utterance = found.group()
+        return utterance, True
 
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
 
         if player == self.guesser:
-            count_go = count_word_in_sentence(utterance.lower(), self.move_construction.lower())
-            if count_go > 1:
+            stop_action = re.search(self.stop_construction, utterance, re.IGNORECASE)
+            move_action = re.search(self.move_construction, utterance, re.IGNORECASE)
+            if move_action and stop_action:
                 self.invalid_response = True
                 return False
-            if not utterance.startswith(self.move_construction) and not self.stop_construction.lower() in utterance.lower():
-                self.invalid_response = True
-                return False
-            if self.stop_construction.lower() in utterance.lower():
+            if stop_action:
                 self.game_stop = True
+                return True
+            count_go =  re.findall(self.move_construction, utterance, re.IGNORECASE)
+            if len(count_go) > 1:
+                self.invalid_response = True
+                return False
+            if move_action:
+                return True
+            if not move_action and not stop_action:
+                self.invalid_response = True
+                return False
             
         if player == self.describer:
             if utterance == "Game needs to be aborted":
                 self.invalid_response = True
                 return False
+            
+        self.log_to_self("Valid format", "Continue")
         return True
 
 

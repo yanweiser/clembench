@@ -11,8 +11,9 @@ logger = clemgame.get_logger(__name__)
 "-------------------------------------------------------------------------------------------------------------"
 "°°°°°°°changeable parameters°°°°°°°"
 game_name = "textmapworld_description"
-stop_construction = "DONE"
-move_construction = "GO:"
+DONE_REGEX = 'DONE'
+MOVE_REGEX = 'GO:\s*(north|east|west|south)'
+
 n = 4
 m = 4
 instance_number = 10
@@ -60,8 +61,8 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                 game_instance["Prompt"] = player_a_prompt_header
                 game_instance["Player2_positive_answer"] = Player2_positive_answer
                 game_instance["Player2_negative_answer"] = Player2_negative_answer
-                game_instance["Move_Construction"] = move_construction
-                game_instance["Stop_Construction"] = stop_construction
+                game_instance["Move_Construction"] = MOVE_REGEX
+                game_instance["Stop_Construction"] = DONE_REGEX
                 game_instance["Grid_Dimension"] = "4"
                 game_instance['Graph_Nodes'] = str(changed_graph['Graph_Nodes'])
                 game_instance['Graph_Edges'] = str(changed_graph['Graph_Edges'])

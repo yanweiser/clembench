@@ -1,11 +1,12 @@
 from typing import Dict, Tuple, List
 import json
 import numpy as np
+import re
 import ast
 from backends import Model, CustomResponseModel
 from clemgame.clemgame import GameMaster, GameBenchmark, Player, DialogueGameMaster, GameScorer
 from clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE
-from games.textmapworld_description.utils import loop_identification, get_directions, string_available_directions, have_common_element, clear_utterance, get_nextnode_label, count_word_in_sentence
+from games.textmapworld_description.utils import loop_identification, get_directions, string_available_directions, have_common_element, get_nextnode_label, count_word_in_sentence
 from queue import Queue
 from copy import deepcopy
 from clemgame import get_logger
@@ -48,13 +49,12 @@ class PathDescriber(Player):
         self.old_node = None
         self.move_type = None
         self.visited_nodes=[]
-        self.current_node = game_instance["Current_Position"]
+        self.current_node = game_instance["Current_Position"] if self.graph_type=="named_graph" else ast.literal_eval(game_instance["Current_Position"])
         self.visited_nodes.append(self.current_node)
 
 
-
     def check_path_answer(self, utterance: str, directions: List[str], node, saved_node) -> List[Dict]:
-        utterance = clear_utterance(utterance, self.move_construction)
+    
         previous_direction = get_directions(node, directions, saved_node)
         previous_dirrection_changed =  string_available_directions(previous_direction) 
         previous_dirrection_no_pq = string_utils.remove_punctuation(previous_dirrection_changed)
@@ -97,36 +97,34 @@ class PathDescriber(Player):
         for message in messages[::-1]:
             if message["role"] == "user":
                 content = message["content"]
-                if content.startswith(self.move_construction): 
-                    utterance = content
+                found = re.search(self.move_construction, content, re.IGNORECASE)
+                if found: 
+                    utterance = found.group(1).lower()
                     break
         validation =self.validate_answer(utterance)
         if self.directions_next_node == None:
             return "Game needs to be aborted"
         if self.current_node == None:
             return "Game needs to be aborted"
+        current_location = self.current_node
         current_location = self.descrtipion[self.current_node].lower()
         current_location = current_location[:-1] if current_location.endswith('.') else current_location
-        if self.ambiguity != None:
-            current_location = self.current_node.split("_")[0] ##because if there is ambiguity, the node is saved as "Kitchen_(1,2)"
         if validation != "not valid":
             positive_answer = self.positive_answer
             positive_answer = positive_answer.replace("$DIRECTIONS$", self.directions_next_node)
-            positive_answer = positive_answer.replace("$ANOTHER_ROOM$", current_location)
+            if self.graph_type == "named_graph":
+                positive_answer = positive_answer.replace("$ANOTHER_ROOM$", current_location)
             utterance = positive_answer
         else:
             negative_answer = self.negative_answer
             negative_answer = negative_answer.replace("$DIRECTIONS$", self.directions_next_node)
-            negative_answer = negative_answer.replace("$SAME_ROOM$", current_location)
-
+            if self.graph_type=="named_graph":
+                negative_answer = negative_answer.replace("$SAME_ROOM$", current_location)
             utterance = negative_answer
         return utterance
     
 
-class Textmapworld(DialogueGameMaster):
-    """
-    This class implements a graph traversal game in which player A (DecisionMaker). 
-    """
+class textmapworld_description(DialogueGameMaster):
 
     def __init__(self, experiment: Dict, player_models : List[Model]):
         super().__init__(GAME_NAME, experiment, player_models)
@@ -138,7 +136,6 @@ class Textmapworld(DialogueGameMaster):
         self.limit_reached = False
 
     def _on_setup(self, **game_instance):
-
         logger.info("_on_setup")
         self.graph_type = game_instance['Game_Type']
         self.initial_position = game_instance["Current_Position"] if self.graph_type=="named_graph" else ast.literal_eval(game_instance["Current_Position"])
@@ -178,7 +175,6 @@ class Textmapworld(DialogueGameMaster):
 
     def _does_game_proceed(self):
 
-        "Proceed untill all nodes arent visited"
         if self.invalid_response:
             self.log_to_self("aborted", "abort game")
             return False
@@ -199,30 +195,53 @@ class Textmapworld(DialogueGameMaster):
             return False
         
         return True
+    
 
+    def _on_parse_response(self, player: Player, utterance: str) -> Tuple[str, bool]:
 
+        if player  == self.guesser:
+            utterance = utterance.replace("\n", "").strip()
+            if re.search(self.stop_construction, utterance, re.IGNORECASE):
+                found = re.search(self.move_construction, utterance, re.IGNORECASE)
+            elif re.search(self.move_construction, utterance, re.IGNORECASE):
+                found = re.search(self.stop_construction, utterance, re.IGNORECASE)
+            if found:
+                utterance = found.group()
+        return utterance, True
+    
+    
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
 
         if player == self.guesser:
-            count_go = count_word_in_sentence(utterance.lower(), self.move_construction.lower())
-            if count_go > 1:
+            stop_action = re.search(self.stop_construction, utterance, re.IGNORECASE)
+            move_action = re.search(self.move_construction, utterance, re.IGNORECASE)
+            if move_action and stop_action:
                 self.invalid_response = True
                 return False
-            if not utterance.startswith(self.move_construction) and not self.stop_construction.lower() in utterance.lower():
-                self.invalid_response = True
-                return False
-            if self.stop_construction.lower() in utterance.lower():
+            if stop_action:
                 self.game_stop = True
+                return True
+            count_go =  re.findall(self.move_construction, utterance, re.IGNORECASE)
+            if len(count_go) > 1:
+                self.invalid_response = True
+                return False
+            if move_action:
+                return True
+            if not move_action and not stop_action:
+                self.invalid_response = True
+                return False
+
             
         if player == self.describer:
             if utterance == "Game needs to be aborted":
                 self.invalid_response = True
                 return False
+            
+        self.log_to_self("Valid format", "Continue")
         return True
 
+
     def _after_add_player_response(self, player: Player, utterance: str):
-        """Add the utterance to other player's history, if necessary.
-        To do this use the method add_user_message(other_player,utterance)."""
 
         if player == self.guesser:
             self.add_user_message(self.describer, utterance)
@@ -234,13 +253,13 @@ class Textmapworld(DialogueGameMaster):
             if self.maxturns_parameter and  self.current_turn == self.max_turns-2:
                 self.maxturns_parameter = False
                 utterance = self.max_turns_reprompting +"\n"+utterance
-                self.log_to_self("maxturns_reminder", "The model was reminded about the maximum number of turns")
             self.add_user_message(self.guesser, utterance)
 
                 
 
 
     def _on_after_turn(self, turn_idx: int):
+
         turn_dict= self.describer.turn_information()
         old_node = turn_dict["from"]
         new_node = turn_dict["to"]
@@ -264,7 +283,7 @@ class GraphGameScorer(GameScorer):
         new_edges = [(edge[1], edge[0]) for edge in old_edges]
         new_edges.extend(old_edges)
         self.edges = new_edges
-        self.start = game_instance["Current_Position"] 
+        self.start = game_instance["Current_Position"] if self.game_type=="named_graph" else ast.literal_eval(game_instance["Current_Position"])
         
     
     def visited_all(self, visited, to_visit):
@@ -335,6 +354,7 @@ class GraphGameScorer(GameScorer):
                         valid_moves += 1
                     else:
                         invalid_moves += 1
+                    
                     best_moves = self.find_best_moves(current, visited)
                     new_move = tuple(cont["new"]) if self.game_type=="unnamed_graph" else cont["new"]
                     if (current, new_move) in best_moves:
@@ -406,7 +426,7 @@ class GraphGameBenchmark(GameBenchmark):
         return "Graph Game."
 
     def create_game_master(self, experiment: Dict, player_models: List[Model]) -> GameMaster:
-        return Textmapworld(experiment, player_models)
+        return textmapworld_description(experiment, player_models)
     
     def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> GameScorer:
         return GraphGameScorer(experiment, game_instance)
@@ -417,7 +437,7 @@ def main():
     experiments = file_utils.load_json("in/instances.json", "textmapworld_description")
     experiment_1 = experiments["experiments"][0]
     game_1 = experiment_1["game_instances"]
-    master = Textmapworld(experiment_1, ["mock", "mock"])
+    master = textmapworld_description(experiment_1, ["mock", "mock"])
     master.setup(**game_1)
     master.play()
 
