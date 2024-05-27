@@ -22,10 +22,10 @@ IMAGE_PATH = os.path.join('games', 'mm_mapworld', 'resources', 'images')
 MAPPING_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "ade_cat_instances.json")
 DATASET_PATH = os.path.join("games", "mm_mapworld", "resources", "ade_20k", "needed_imgs")
 TEMP_IMAGE_PATH = os.path.join("games", "mm_mapworld_specificroom", "resources", "images")
-RESPONSE_REGEX = "^\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}"
+RESPONSE_REGEX = "^\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}$"
 MOVE_CONSTRUCTION = "GO: "
-FOUND_REGEX = "DONE"
-MOVE_REGEX = "GO:\s*(north|east|south|west)"
+FOUND_REGEX = "^DONE$"
+MOVE_REGEX = "^GO:\s*(north|east|south|west)$"
 
 
 def create_instances(grid_size = GRIDS['large'], graph_size = SIZES['large'], num_instances = NUM_INSTANCES, goal_dist = DISTS["close"]):

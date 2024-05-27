@@ -151,9 +151,9 @@ class MmMapWorld(DialogueGameMaster):
         self.current_room = instance_data["start"]
         self.visited_nodes=[self.current_room]
         
-        self.response_regex = re.compile(game_instance["response_regex"])
-        self.done_regex = re.compile(game_instance["done_regex"])
-        self.move_regex = re.compile(game_instance["move_regex"])
+        self.response_regex = re.compile(game_instance["response_regex"], re.IGNORECASE)
+        self.done_regex = re.compile(game_instance["done_regex"], re.IGNORECASE)
+        self.move_regex = re.compile(game_instance["move_regex"], re.IGNORECASE)
         
         self.done_const = game_instance["stop_construction"]
         self.move_const = game_instance["move_construction"]
@@ -228,6 +228,7 @@ class MmMapWorld(DialogueGameMaster):
                 return False
             try:
                 action = json.loads(hit.group())['action']
+                action = action.lower()
             except json.decoder.JSONDecodeError:
                 self.aborted = True
                 self.log_to_self("JSON decode error", "Game aborted.")

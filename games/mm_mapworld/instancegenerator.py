@@ -27,9 +27,9 @@ else:
 TEMP_IMAGE_PATH = os.path.join("games", "mm_mapworld", "resources", "images")
 MOVE_CONSTRUCTION = "GO: "
 STOP_CONSTRUCTION = "DONE"
-RESPONSE_REGEX = "^\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}"
-DONE_REGEX = 'DONE'
-MOVE_REGEX = 'GO:\s*(north|east|west|south)'
+RESPONSE_REGEX = "^\{[\s]*\"description\":\s*\"([^\{]*?)\"\s*,\s*\"action\":\s*\"([^\{]*?)\"[\s]*\}$"
+DONE_REGEX = '^DONE$'
+MOVE_REGEX = '^GO:\s*(north|east|west|south)$'
 
 
 

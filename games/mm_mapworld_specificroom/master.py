@@ -155,9 +155,9 @@ class MmMapWorld(DialogueGameMaster):
         self.start = instance_data["start"]
         self.current_room = instance_data["start"]
         self.visited_nodes=[self.current_room]
-        self.response_regex = re.compile(game_instance["response_regex"])
-        self.done_regex = re.compile(game_instance["done_regex"])
-        self.move_regex = re.compile(game_instance["move_regex"])
+        self.response_regex = re.compile(game_instance["response_regex"], re.IGNORECASE)
+        self.done_regex = re.compile(game_instance["done_regex"], re.IGNORECASE)
+        self.move_regex = re.compile(game_instance["move_regex"], re.IGNORECASE)
         self.move_const = game_instance["move_construction"]
         self.use_images = game_instance["use_images"]
         
@@ -251,7 +251,7 @@ class MmMapWorld(DialogueGameMaster):
                 self.aborted = True
                 self.log_to_self("Invalid format", "Game aborted.")
                 return False
-            new_dir = hit.group(1)
+            new_dir = hit.group(1).lower()
             self.move = new_dir
             self.log_to_self("Valid format", "Continue")
         return True
