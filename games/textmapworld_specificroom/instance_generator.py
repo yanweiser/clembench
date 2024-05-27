@@ -12,6 +12,7 @@ logger = clemgame.get_logger(__name__)
 "-------------------------------------------------------------------------------------------------------------"
 "°°°°°°°changeable parameters°°°°°°°"
 game_name = "textmapworld_specificroom"
+strict = True
 create_new_graphs = False # True or False   !if True, the graphs will be created again, threfore pay attention!
 size = 8        #"large"
 n = 4
@@ -20,8 +21,12 @@ instance_number = 10
 game_type = "named_graph" #"named_graph" or "unnamed_graph"
 cycle_type="cycle_false" #"cycle_true" or "cycle_false"
 ambiguity= None #(repetition_rooms, repetition_times) or None
-DONE_REGEX = 'DONE'
-MOVE_REGEX = 'GO:\s*(north|east|west|south)'
+if strict:
+    DONE_REGEX = '^DONE$'
+    MOVE_REGEX = '^GO:\s*(north|east|west|south)$'
+else:
+    DONE_REGEX = 'DONE'
+    MOVE_REGEX = 'GO:\s*(north|east|west|south)'
 loop_reminder = False
 max_turns_reminder = False
 distances = {"on": [0], "close": [1,2], "far": [3,4]}
@@ -83,6 +88,7 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                     game_instance["Max_Turns_Reminder"] = max_turns_reminder
                     game_instance["Max_Turns_Reminder_Text"] = reminders_file["max_turns_reminder"]
                     game_instance["Mapping"] = str(grid["Mapping"])
+                    game_instance["Strict"] = strict
                     generated_graph = create_graph(grid["Graph_Nodes"], grid["Graph_Edges"])
                     dists = dict(nx.all_pairs_shortest_path_length(generated_graph))
                     random_distance = random.choice(value)

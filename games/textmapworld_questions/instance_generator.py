@@ -18,9 +18,15 @@ m = 4
 instance_number = 10
 game_type = "named_graph" #"named_graph" or "unnamed_graph"
 cycle_type="cycle_false" #"cycle_true" or "cycle_false"
-DONE_REGEX = 'DONE'
-MOVE_REGEX = 'GO:\s*(north|east|west|south)'
-QA_REGEX = "Answer:\s*(\d+)"
+strict = True 
+if strict:
+    DONE_REGEX = '^DONE$'
+    MOVE_REGEX = '^GO:\s*(north|east|west|south)$'
+    QA_REGEX = '^Answer:\s*(\d+)\s*$'
+else:
+    DONE_REGEX = 'DONE'
+    MOVE_REGEX = 'GO:\s*(north|east|west|south)'
+    QA_REGEX = "Answer:\s*(\d+)"
 loop_reminder = False
 max_turns_reminder = False
 ambiguity_types =  {"none": [None], "limited": [(2,2), (1,2)], "strong": [(1,3), (2,3), (3,2)]}
@@ -98,6 +104,7 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                     game_instance["Third_Question_Answer"] = str((random_choice ,0))
                     game_instance["Question_reprompt"] = str(reminders_file["question_rule"])
                     game_instance["Mapping"] = str(grid["Mapping"])
+                    game_instance["Strict"] = strict
                     
                         
 
