@@ -277,7 +277,7 @@ class MmMapWorldQA(DialogueGameMaster):
                     self.aborted = True
                     self.log_to_self("Invalid format", "Game aborted.")
                     return False
-                new_dir = hit.group(1)
+                new_dir = hit.group(1).lower()
                 self.move = new_dir
                 self.log_to_self("Valid format", "Continue")
             else:
