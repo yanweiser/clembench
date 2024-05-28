@@ -11,9 +11,15 @@ logger = clemgame.get_logger(__name__)
 "-------------------------------------------------------------------------------------------------------------"
 "°°°°°°°changeable parameters°°°°°°°"
 game_name = "textmapworld_description"
-DONE_REGEX = 'DONE'
-MOVE_REGEX = 'GO:\s*(north|east|west|south)'
-
+strict = True 
+if strict:
+    DONE_REGEX = '^DONE$'
+    MOVE_REGEX = '^GO:\s*(north|east|west|south)$'
+else:
+    DONE_REGEX = 'DONE'
+    MOVE_REGEX = 'GO:\s*(north|east|west|south)'
+    
+create_new_graphs = False 
 n = 4
 m = 4
 instance_number = 10
@@ -79,6 +85,7 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                 game_instance["Max_Turns_Reminder"] = max_turns_reminder
                 game_instance["Max_Turns_Reminder_Text"] = reminders_file["max_turns_reminder"]
                 game_instance["Mapping"]= str(instance['cats'])
+                game_instance["Strict"] = strict
 
 
 
