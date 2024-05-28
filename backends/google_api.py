@@ -3,8 +3,12 @@ from retry import retry
 import google.generativeai as genai
 import backends
 from backends.utils import ensure_messages_format
-import json
+import os
+import requests
+import uuid
+import tempfile
 import imghdr
+import time
 
 logger = backends.get_logger(__name__)
 
@@ -30,6 +34,29 @@ class GoogleModel(backends.Model):
             model_name=model_spec.model_id
         )
 
+
+    def download_image(self, image_url):
+        # Create a temporary directory
+        temp_dir = tempfile.mkdtemp()
+
+        try:
+            # Send a GET request to the URL
+            response = requests.get(image_url)
+            response.raise_for_status()
+
+            # Generate a unique file name
+            unique_name = str(uuid.uuid4()) + '.jpg'
+            file_path = os.path.join(temp_dir, unique_name)
+
+            # Write the image content to a file
+            with open(file_path, 'wb') as file:
+                file.write(response.content)
+            return file_path
+
+        except requests.RequestException as e:
+            print(f"Failed to download {image_url}: {e}")
+            return None
+
     def upload_file(self, file_path, mime_type):
         """Uploads the given file to Gemini.
 
@@ -43,12 +70,12 @@ class GoogleModel(backends.Model):
 
         for image_path in images:
             if image_path.startswith('http'):
-                image_parts.append(image_path)
-            else:
-                image_type = imghdr.what(image_path)
-                # upload to Gemini server
-                file_url = self.upload_file(image_path, 'image/'+image_type)
-                image_parts.append(file_url)
+                image_path = self.download_image(image_path)
+
+            image_type = imghdr.what(image_path)
+            # upload to Gemini server
+            file_url = self.upload_file(image_path, 'image/'+image_type)
+            image_parts.append(file_url)
         return image_parts
 
     def encode_messages(self, messages):
@@ -83,7 +110,7 @@ class GoogleModel(backends.Model):
             encoded_messages_for_logging.append(m_for_logging)
         return encoded_messages, encoded_messages_for_logging
 
-    @retry(tries=5, delay=60, logger=logger)
+    @retry(tries=10, delay=120, logger=logger)
     @ensure_messages_format
     def generate_response(self, messages: List[Dict]) -> Tuple[str, Any, str]:
         """
@@ -128,6 +155,9 @@ class GoogleModel(backends.Model):
             contents=encoded_messages,
             safety_settings=safety_settings,
             generation_config=generation_config)
+
+        # print('Putting to sleep for 60 sec')
+        # time.sleep(120)
 
         response_text = ''
         response_json = {}
