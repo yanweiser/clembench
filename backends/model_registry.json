@@ -10,7 +10,7 @@
     "backend": "openai_compatible"
   },
   {
-    "model_name": "Llama-3-70B-Instruct",
+    "model_name": "Llama-3-70B-Instruct-Anyscale",
     "model_id": "meta-llama/Meta-Llama-3-70B-Instruct",
     "backend": "openai_compatible"
   },
@@ -20,7 +20,12 @@
     "backend": "openai_compatible"
   },
   {
-    "model_name": "Llama-3-8B-Instruct",
+    "model_name": "Llama-3-8B-Together.ai",
+    "model_id": "meta-llama/Llama-3-8b-chat-hf",
+    "backend": "openai_compatible"
+  },
+  {
+    "model_name": "Llama-3-8B-Instruct-Anyscale",
     "model_id": "meta-llama/Meta-Llama-3-8B-Instruct",
     "backend": "openai_compatible"
   },
@@ -185,27 +190,32 @@
     "support_multiple_images": true
   },
   {
-    "model_name": "gemini-1.0-pro",
-    "model_id": "gemini-1.0-pro",
+    "model_name": "gemini-1.0-pro-001",
+    "model_id": "gemini-1.0-pro-001",
+    "backend": "google"
+  },
+ {
+    "model_name": "gemini-1.0-pro-002",
+    "model_id": "gemini-1.0-pro-002",
     "backend": "google"
   },
   {
-    "model_name": "gemini-1.0-pro-vision-latest",
+    "model_name": "gemini-1.0-pro-vision-001",
     "model_id": "gemini-1.0-pro-vision-latest",
     "backend": "google",
     "supports_images": true,
     "support_multiple_images": true
   },
   {
-    "model_name": "gemini-1.5-flash-latest",
-    "model_id": "gemini-1.5-flash-latest",
+    "model_name": "gemini-1.5-flash-001",
+    "model_id": "gemini-1.5-flash-001",
     "backend": "google",
     "supports_images": true,
     "support_multiple_images": true
   },
   {
-    "model_name": "gemini-1.5-pro-latest",
-    "model_id": "gemini-1.5-pro-latest",
+    "model_name": "gemini-1.5-pro-001",
+    "model_id": "gemini-1.5-pro-001",
     "backend": "google",
     "supports_images": true,
     "support_multiple_images": true
