@@ -333,6 +333,7 @@ class MmMapWorldQA(DialogueGameMaster):
                 if self.move is not None:
                     self.cardinal_room_change(self.move)
                     self.describer.cardinal_room_change(self.move)
+                self.describer.invalid_move == self.current_room == old_room
                 self.visited_nodes.append(self.current_room)
                 self.describer.visited_nodes.append(self.current_room)
                 self.log_to_self(type_ = "move", value = json.dumps({"old": old_room, "new": self.current_room}))
@@ -534,32 +535,33 @@ class MM_MapWorldQAScorer(GameScorer):
             else:
                 plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='gray', linestyle='--', zorder = 5)
         last = path[0]
-        for i in range(1, len(path)):
-            if path[i] == path[i - 1]:
-                continue
-            x1, y1 = last
-            x2, y2 = path[i]
-            dx = x2 - x1
-            dy = y2 - y1
-            t = traveled[path[i]]
-            traveled[path[i]] += 1
-            color = "black"
-            if i == len(path)-1:
-                color = "red"
-            t = sum([(1/(1+j)) for j in range(t)])
-            plt.arrow(x1, 
-                      y1, 
-                      dx + t * offset, 
-                      dy + t * offset, 
-                      color=color, 
-                      width = 0.005, 
-                      head_width = 0.05, 
-                      length_includes_head = True, 
-                      zorder = 10)
-            last = (
-                x1 + dx + t * offset,
-                y1 + dy + t * offset
-            )
+        if len(path) > 1:
+            for i in range(1, len(path)):
+                if path[i] == path[i - 1]:
+                    continue
+                x1, y1 = last
+                x2, y2 = path[i]
+                dx = x2 - x1
+                dy = y2 - y1
+                t = traveled[path[i]]
+                traveled[path[i]] += 1
+                color = "black"
+                if i == len(path)-1:
+                    color = "red"
+                t = sum([(1/(1+j)) for j in range(t)])
+                plt.arrow(x1, 
+                        y1, 
+                        dx + t * offset, 
+                        dy + t * offset, 
+                        color=color, 
+                        width = 0.005, 
+                        head_width = 0.05, 
+                        length_includes_head = True, 
+                        zorder = 10)
+                last = (
+                    x1 + dx + t * offset,
+                    y1 + dy + t * offset
+                )
         plt.xlabel('X')
         plt.ylabel('Y')
         plt.grid(True)
