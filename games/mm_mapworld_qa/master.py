@@ -118,6 +118,7 @@ class PathDescriber(Player):
             response = ''
             if self.phase_1_turn == 0:
                 response += self.qa_init_prompt
+            response += ' '
             response += self.questions[self.phase_1_turn]['q']
             return response 
 
