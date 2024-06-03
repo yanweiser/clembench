@@ -376,50 +376,59 @@ class MM_MapWorldScorer(GameScorer):
                         q.put(new)
         return found
     
-    #BETA
     def plot_path(self, path):
-        offset = 0.03
+        offset = 0.05
         fig = plt.figure(figsize=(4, 4))
-        plt.plot([node[0] for node in self.nodes], [node[1] for node in self.nodes], 'o', color='gray', linewidth = 20, markersize = 25)
         for node in self.nodes:
+            if node in path and node != path[-1] and node != self.target:
+                plt.plot(node[0], node[1], 'o', color='brown', 
+                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:olive')
+            if node == path[-1] and node != self.target:
+                plt.plot(node[0], node[1], 'o', color='brown', 
+                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:cyan')
             if node == self.target:
-                plt.plot(node[0], node[1], 'o', color='blue', linewidth = 20, markersize = 25, zorder = 9)
-            elif node == self.start_node:
-                plt.plot(node[0], node[1], 'o', color='green', linewidth = 20, markersize = 25, zorder = 9)
-            else:
-                plt.plot(node[0], node[1], 'o', color='gray', linewidth = 20, markersize = 25, zorder = 9)
-        traveled = {}
-
-        for node in self.nodes:
-            traveled[node] = 0
+                plt.plot(node[0], node[1], 'o', color='brown', 
+                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:orange')
+            if not node in path:
+                plt.plot(node[0], node[1], 'o', color='brown', 
+                        linewidth = 20, markersize = 25, zorder = 9, mfc = 'tab:gray')
+        plt.xlim(-1, 4)
+        plt.ylim(-1, 4)
+        traveled = {node: 0 for node in self.nodes}
         traveled[self.start_node] += 1
-
+        for edge in self.edges:
+            if edge[0] in path and edge[1] in path:
+                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='black', linestyle='--', zorder = 5)
+            else:
+                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='gray', linestyle='--', zorder = 5)
         last = path[0]
-        for i in range(1, len(path)):
-            if path[i] == path[i - 1]:
-                continue
-            x1, y1 = last
-            x2, y2 = path[i]
-            dx = x2 - x1
-            dy = y2 - y1
-            t = traveled[path[i]]
-            traveled[path[i]] += 1
-            plt.arrow(x1, 
-                      y1, 
-                      dx + t * offset, 
-                      dy + t * offset, 
-                      color='red', 
-                      width = 0.005, 
-                      head_width = 0.05, 
-                      length_includes_head = True, 
-                      zorder = 10)
-            last = (
-                x1 + dx + t * offset,
-                y1 + dy + t * offset
-            )
-
-        # Customize the plot
-        plt.axis('equal')
+        if len(path) > 1:
+            for i in range(1, len(path)):
+                if path[i] == path[i - 1]:
+                    continue
+                x1, y1 = last
+                x2, y2 = path[i]
+                dx = x2 - x1
+                dy = y2 - y1
+                t = traveled[path[i]]
+                traveled[path[i]] += 1
+                color = "black"
+                if i == len(path)-1:
+                    color = "red"
+                t = sum([(1/(1+j)) for j in range(t)])
+                plt.arrow(x1, 
+                        y1, 
+                        dx + t * offset, 
+                        dy + t * offset, 
+                        color=color, 
+                        width = 0.005, 
+                        head_width = 0.05, 
+                        length_includes_head = True, 
+                        zorder = 10)
+                last = (
+                    x1 + dx + t * offset,
+                    y1 + dy + t * offset
+                )
         plt.xlabel('X')
         plt.ylabel('Y')
         plt.grid(True)
