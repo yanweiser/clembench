@@ -149,7 +149,9 @@ def create_graph(nodes, edges, type):
     nodes= lowercase_list_strings(nodes)
     edges= lowercase_tuple_strings(edges, type)
     G.add_nodes_from(nodes)
-    G.add_edges_from(edges)
+    for edge in edges:
+        if len(edge) == 2:
+            G.add_edge(edge[0], edge[1])
     return G
 
     

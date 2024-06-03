@@ -401,7 +401,6 @@ class GraphGameScorer(GameScorer):
                     except:
                         graphs_similarity.append(0)
 
-
                 if action['type'] == "stop":
                     if action["content"]:
                         stopped = True
@@ -447,6 +446,10 @@ class GraphGameScorer(GameScorer):
         self.log_episode_score('seen', len(seen) if stopped else np.NaN)
         self.log_episode_score('efficiency', efficiency  if stopped else np.NaN)
         self.log_episode_score('exploration', exploration  if stopped else np.NaN)
+        if graphs_similarity and stopped:
+                self.log_episode_score('graph_similarity', graphs_similarity[-1])
+        else:
+            self.log_episode_score('graph_similarity', 0 if stopped else np.NaN)
         self.log_episode_score(BENCH_SCORE, bench_score if stopped else np.NaN)
 
 
