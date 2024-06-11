@@ -48,8 +48,12 @@ class PathWalker(Player):
 
     def _custom_response(self, messages, turn_idx) -> str:
         """Return a random direction."""
-        random_dir = random.choice(DIRS)
-        return f'GO: {random_dir}'
+        actions = ["GO: west", "GO: east", "GO: north", "GO: south", "DONE"]
+        response = {
+            "description": " ",
+            "action": np.random.choice(actions)
+        }
+        return json.dumps(response)
     
 
 class PathDescriber(Player):
@@ -388,10 +392,7 @@ class MM_MapWorldScorer(GameScorer):
         traveled = {node: 0 for node in self.nodes}
         traveled[self.start_node] += 1
         for edge in self.edges:
-            if edge[0] in path and edge[1] in path:
-                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='black', linestyle='--', zorder = 5)
-            else:
-                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='gray', linestyle='--', zorder = 5)
+            plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], color='gray', linestyle='--', zorder = 5)
         last = path[0]
         if len(path) > 1:
             for i in range(1, len(path)):
@@ -422,7 +423,7 @@ class MM_MapWorldScorer(GameScorer):
                 )
         plt.xlabel('X')
         plt.ylabel('Y')
-        plt.grid(True)
+        plt.grid(True, alpha = 0.35)
         return fig
 
 
@@ -529,10 +530,10 @@ class MM_MapWorldScorer(GameScorer):
             images.append(imageio.imread(f"tmp/step_plots/{i}.png"))
             plt.close()
         imageio.mimsave(os.path.join(results_root, dialogue_pair, self.name, game_record_dir, "animation.gif"), images, fps=1, loop=True)
-        try:
-            shutil.rmtree("tmp")
-        except OSError as e:
-            print("Error: %s - %s." % (e.filename, e.strerror))
+        # try:
+        #     shutil.rmtree("tmp")
+        # except OSError as e:
+        #     print("Error: %s - %s." % (e.filename, e.strerror))
         
         
                 

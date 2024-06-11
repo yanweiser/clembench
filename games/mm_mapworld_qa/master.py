@@ -502,7 +502,10 @@ class MM_MapWorldQAScorer(GameScorer):
             self.log_episode_score('seen', len(seen))
             exp = len(visited)/len(self.nodes)
             self.log_episode_score('exploration', exp)
-            eff = sum(good_move)/len(good_move)
+            if good_move:
+                eff = sum(good_move)/len(good_move)
+            else:
+                eff = 0
             self.log_episode_score('efficiency', eff)
             qa = (sum(correct)/len(correct))
             self.log_episode_score('question_answering', qa)
