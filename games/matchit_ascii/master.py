@@ -34,11 +34,11 @@ class MatchItPlayer(Player):
         if "collaborative" in last_message:
             return f"DESCRIPTION: from Player {self.role}"
         elif "ask" in last_message:
-            return "\n"#f"QUESTION: from Player {self.role}"
+            return f"QUESTION: from Player {self.role}"
         elif "QUESTION" in last_message:
             return f"ANSWER: from Player {self.role}"
         elif "decision" in last_message:
-            return "DECISION: Different grids."
+            return "DECISION: Same grid."
         else: 
             return "ANSWER: How did we land here? This is the else in the mock answers."
 
@@ -157,7 +157,9 @@ class MatchItAscii(DialogueGameMaster):
                 elif utterance.lower().strip(".\n") == (self.flags["decision"] + " " + self.wrong_solution).lower():
                     player.success = False
                     self.log_to_self(f"Decision Player {player.role}", "loss")
-                else: 
+                else:
+                    self.log_to_self("invalid content", "abort, wrong message content.")
+                    self.aborted = True  
                     return False
                 return True
                 
@@ -277,17 +279,6 @@ class MatchItScorer(GameScorer):
          ```np.nan``````
          """
 
-        # clemscore
-        # momentan erst mal: 0 wenn beide falsch, 100 wenn beide richtig und 0.5 wenn eins richtig
-
-        # aborted: wenn zu viele turns ohne decision oder eine Flag nicht
-        # self.log_episode_score(ms.METRIC_ABORTED, )
-
-        # success: nur wenn beide Decisions richtig sind, i.e. wenn 
-        # "action": {
-        #             "type": "Decision Player A",
-        #             "content": "success"
-        #         }
         all_turn_scores = []
         success_a = False
         success_b = False
@@ -299,6 +290,12 @@ class MatchItScorer(GameScorer):
                 action = event["action"]
                 # parsed requests
                 if action["type"] == "invalid format":
+                    turn_score_dict["violated_request_count"] += 1
+                    turn_score_dict["request_count"] += 1
+                    first_word = action["content"].split(" ")[-1]
+                    with open("first_words.txt", "a") as myfile:
+                        myfile.write(first_word + "\n")
+                elif action["type"] == "invalid content":
                     turn_score_dict["violated_request_count"] += 1
                     turn_score_dict["request_count"] += 1
                 elif action["type"] == "valid format":
@@ -334,6 +331,7 @@ class MatchItScorer(GameScorer):
                 self.log_episode_score(ms.METRIC_LOSE, 0)
                 # Game-specific metrics
                 self.log_episode_score(ms.BENCH_SCORE, np.nan)  # metric not applicable
+                self.log_episode_score("Player Score", np.nan)
             else:
                 # two wrong decisions:
                 if not success_a and not success_b:
@@ -341,14 +339,16 @@ class MatchItScorer(GameScorer):
                     self.log_episode_score(ms.METRIC_SUCCESS, 0)
                     self.log_episode_score(ms.METRIC_LOSE, 1)
                     # Game-specific metrics
-                    self.log_episode_score(ms.BENCH_SCORE, 0)  # metric not applicable
+                    self.log_episode_score(ms.BENCH_SCORE, 0)
+                    self.log_episode_score("Player Score", 0)
                 # only one decided correctly
                 elif success_a != success_b:
                     self.log_episode_score(ms.METRIC_ABORTED, 0)
                     self.log_episode_score(ms.METRIC_SUCCESS, 0)
                     self.log_episode_score(ms.METRIC_LOSE, 1)
                     # Game-specific metrics
-                    self.log_episode_score(ms.BENCH_SCORE, 50)  # current decision, may change
+                    self.log_episode_score(ms.BENCH_SCORE, 0)  # current decision, may change (before: 50)
+                    self.log_episode_score("Player Score", 50)
 
                 else:   # = success_a and success_b:   
                     #print("has been successful")
@@ -356,7 +356,8 @@ class MatchItScorer(GameScorer):
                     self.log_episode_score(ms.METRIC_SUCCESS, 1)
                     self.log_episode_score(ms.METRIC_LOSE, 0)
                     # Game-specific metrics
-                    self.log_episode_score(ms.BENCH_SCORE, 100)  # metric not applicable
+                    self.log_episode_score(ms.BENCH_SCORE, 100)
+                    self.log_episode_score("Player Score", 100)
 
             
 class MatchItBenchmark(GameBenchmark):
