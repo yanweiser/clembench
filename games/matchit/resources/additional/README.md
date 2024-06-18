@@ -30,4 +30,4 @@ The following files need to be downloaded from from Visual Genome (https://homes
 
 
 
-Package requirements are specified in [requirements.txt](resources/additional/requirements.txt), [SetSimilaritySearch package](https://github.com/ekzhu/SetSimilaritySearch) has also to be installed
+Package requirements are specified in [requirements.txt](requirements.txt), [SetSimilaritySearch package](https://github.com/ekzhu/SetSimilaritySearch) has also to be installed
