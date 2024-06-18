@@ -3,7 +3,7 @@ import json
 from clemgame.clemgame import GameInstanceGenerator
 from typing import Dict
 
-GAME_NAME: str = "matchit_ascii"
+GAME_NAME: str = "matchit_ascii_info"
 # n instances to be generated
 N: int = 10 # max = len(similar_grid_1) = 27, if not using other grid pairs
 # paths to image pair tables
@@ -13,7 +13,7 @@ PATH_GRIDS: str = "games/matchit_ascii/resources/grid_pairs/grids_matchit.json"
 #how many questions can each player ask?
 DEC_TURN: int = 3
 # should the players be informed about the number of questions they can ask?
-INFO_NUM_QUESTIONS: bool = False
+INFO_NUM_QUESTIONS: bool = True
 
 SEED: int = 42
 

@@ -1,7 +1,7 @@
 import pandas as pd
 from clemgame.clemgame import GameInstanceGenerator
 
-GAME_NAME: str = "matchit"
+GAME_NAME: str = "matchit_info"
 # n instances to be generated
 N: int = 10 # max: len(similar_images.csv) = 161, if not using other image pairs
 # paths to image pair tables
@@ -11,7 +11,7 @@ PATH_SIM: str = "games/matchit/resources/image_pairs/similar_images.csv"
 #how many questions can each player ask?
 DEC_TURN: int = 3
 # should the players be informed about the number of questions they can ask?
-INFO_NUM_QUESTIONS: bool = False
+INFO_NUM_QUESTIONS: bool = True
 
 SEED: int = 42
 
