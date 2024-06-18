@@ -1,6 +1,6 @@
 # How to sample different number of instances
 
-The instancegeneretory.py generates instances by sampling N examples (N $\leq$ 161) per difficulty (same, similar and different image) from the lists of image pairs in resources/imagepairs. N and other version parameters (such as the number of questions) are declared in the instancegenerator file. If N should be larger or other image pairs are wanted, see [here](games/matchit/resources/README.md).
+The instancegeneretory.py generates instances by sampling N examples (N $\leq$ 161) per difficulty (same, similar and different image) from the lists of image pairs in resources/imagepairs. N and other version parameters (such as the number of questions) are declared in the instancegenerator file. If N should be larger or other image pairs are wanted, see [here](resources/README.md).
 
 
 # Image pair sampling rationale
@@ -10,9 +10,9 @@ The image pairs for the "similar" category are chosen by a combination of Jaccar
 
 # Resources
 * image_pairs: contains pairs of images used by imagegenerator.py
-    * [similar_images.csv](games/matchit/resources/image_pairs/similar_images.csv): hand curated list of 161 similar image pairs derived from 2000_largest_clipscore.csv (criteria: Jaccard score higher than 0.22, CLIP score higher than 0.8 and images should be similar, but easily discriminable)
-    * [different_images.csv](games/matchit/resources/image_pairs/different_images.csv): random sample of 1000 image pairs out of all pairs with a Jaccard-Index below 0.05 from a list of image pairs out of 60000 images which was is ~6 million entries long. For faster instance generation this subsample exists.
+    * [similar_images.csv](resources/image_pairs/similar_images.csv): hand curated list of 161 similar image pairs derived from 2000_largest_clipscore.csv (criteria: Jaccard score higher than 0.22, CLIP score higher than 0.8 and images should be similar, but easily discriminable)
+    * [different_images.csv](resources/image_pairs/different_images.csv): random sample of 1000 image pairs out of all pairs with a Jaccard-Index below 0.05 from a list of image pairs out of 60000 images which was is ~6 million entries long. For faster instance generation this subsample exists.
 * additional
     * necessary information and files for generating more image pairs
-    * [1000_largest_of_60000_jac.csv](games/matchit/resources/additional/1000_largest_of_60000_jac.cs): a list of the 1000 image pairs with the highest Jaccard-Indices out of ~1.8 billion image pairs (all possible pairs out of a 60000 subset of the Visual Genome data set)
-    * [largest_clipscore.csv](games/matchit/resources/additional/largest_clipscore.csv): 1572 image pairs with CLIP-scores between  0.31 and  0.95 and Jaccard indices above 0.22
+    * [1000_largest_of_60000_jac.csv](resources/additional/1000_largest_of_60000_jac.cs): a list of the 1000 image pairs with the highest Jaccard-Indices out of ~1.8 billion image pairs (all possible pairs out of a 60000 subset of the Visual Genome data set)
+    * [largest_clipscore.csv](resources/additional/largest_clipscore.csv): 1572 image pairs with CLIP-scores between  0.31 and  0.95 and Jaccard indices above 0.22
