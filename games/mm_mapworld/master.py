@@ -530,10 +530,10 @@ class MM_MapWorldScorer(GameScorer):
             images.append(imageio.imread(f"tmp/step_plots/{i}.png"))
             plt.close()
         imageio.mimsave(os.path.join(results_root, dialogue_pair, self.name, game_record_dir, "animation.gif"), images, fps=1, loop=True)
-        # try:
-        #     shutil.rmtree("tmp")
-        # except OSError as e:
-        #     print("Error: %s - %s." % (e.filename, e.strerror))
+        try:
+            shutil.rmtree("tmp")
+        except OSError as e:
+            print("Error: %s - %s." % (e.filename, e.strerror))
         
         
                 

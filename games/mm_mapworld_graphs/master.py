@@ -420,6 +420,7 @@ class MM_MapWorldGraphsScorer(GameScorer):
     
     def normalize(self, distance):
         normalized_distance = 1 / (1 + np.exp(-0.5 * distance))
+        normalized_distance = 2*(normalized_distance - 0.5)
         return normalized_distance
     
     def calculate_similarity(self, graph1, graph2):

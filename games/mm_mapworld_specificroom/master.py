@@ -507,10 +507,7 @@ class MM_MapWorldScorer(GameScorer):
             self.log_episode_score('visited', len(visited))
             self.log_episode_score('seen', len(seen))
             l = len(self.path)
-            if l == 1:
-                eff = 100
-            else:
-                eff = 100*(1/max(1, l - self.dist))
+            eff = 100*(1/max(1, l - self.dist))
             self.log_episode_score('effieciency', eff)
             find = 100*int((self.target == end))
             self.log_episode_score('finding', find)
