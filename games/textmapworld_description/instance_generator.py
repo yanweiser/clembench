@@ -23,7 +23,6 @@ create_new_graphs = False
 n = 4
 m = 4
 instance_number = 10
-ambiguity= None 
 loop_reminder = False
 max_turns_reminder = False
 experiments_details = {"small": (4,"cycle_false"), "medium": (6, "cycle_false"), "large": (8, "cycle_false"), "medium_cycle": (6, "cycle_true"), "large_cycle": (8, "cycle_true")}
@@ -77,7 +76,7 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                 game_instance["Directions"] = str(changed_graph['Directions'])
                 game_instance["Moves"] = str(changed_graph['Moves'])
                 game_instance['Cycle'] = cycle
-                game_instance['Ambiguity'] = ambiguity
+                game_instance['Ambiguity'] = None 
                 game_instance['Game_Type'] = "named_graph"
                 game_instance["Descriptions"] = descriptions
                 game_instance["Loop_Reminder"] = loop_reminder

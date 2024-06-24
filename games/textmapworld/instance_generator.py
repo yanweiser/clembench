@@ -16,7 +16,6 @@ n = 4
 m = 4
 instance_number = 10
 game_type = "named_graph" #"named_graph" or "unnamed_graph"
-cycle_type="cycle_false" #"cycle_true" or "cycle_false"
 ambiguity= None #(repetition_rooms, repetition_times) or None
 
 if strict:
@@ -90,7 +89,8 @@ class GraphGameInstanceGenerator(GameInstanceGenerator):
                     game_instance["Loop_Reminder_Text"] = reminders_file["loop_reminder"]
                     game_instance["Max_Turns_Reminder"] = max_turns_reminder
                     game_instance["Max_Turns_Reminder_Text"] = reminders_file["max_turns_reminder"]
-                    game_instance["Mapping"] = str(grid["Mapping"])
+                    if game_type == "named_graph":
+                        game_instance["Mapping"] = str(grid["Mapping"])
                     game_instance["Strict"] = strict
                     game_id += 1
 

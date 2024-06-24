@@ -54,7 +54,7 @@ class PathDescriber(Player):
 
     def check_path_answer(self, utterance: str, directions: List[str], node, saved_node) -> List[Dict]:
     
-        previous_direction = get_directions(node, directions, saved_node)
+        previous_direction = get_directions(node, directions, saved_node, self.graph_type)
         previous_dirrection_changed =  string_available_directions(previous_direction) 
         previous_dirrection_no_pq = string_utils.remove_punctuation(previous_dirrection_changed)
         if not have_common_element(utterance, previous_dirrection_no_pq):
@@ -71,7 +71,7 @@ class PathDescriber(Player):
         if errors:
             error = errors[0]
             self.game_error = error
-            self.directions_next_node = get_directions(the_last_node, self.directions, the_last_node)    
+            self.directions_next_node = get_directions(the_last_node, self.directions, the_last_node, self.graph_type )    
             self.directions_next_node = string_available_directions(self.directions_next_node)
             return "not valid"
         else:
@@ -79,7 +79,7 @@ class PathDescriber(Player):
             self.current_node = next_node_label
             if next_node_label in self.nodes:
                 self.visited_nodes.append(next_node_label)
-                list_directions_nextnode= get_directions(next_node_label, self.directions, self.current_node)
+                list_directions_nextnode= get_directions(next_node_label, self.directions, self.current_node, self.graph_type)
                 self.directions_next_node = string_available_directions(list_directions_nextnode)
                 return True
             
@@ -162,7 +162,7 @@ class Textmapworld(DialogueGameMaster):
             if self.ambiguity != None:
                 initial_directions = self.initial_position.split("_")[0]
             self.playerA_initial_prompt = self.playerA_initial_prompt.replace("$INITIAL_ROOM$", initial_directions)
-        self.initial_directions= get_directions(self.initial_position, self.directions, self.initial_position)
+        self.initial_directions= get_directions(self.initial_position, self.directions, self.initial_position, self.graph_type )
         self.changed_initial_directions = string_available_directions(self.initial_directions)
         self.playerA_initial_prompt = self.playerA_initial_prompt.replace("$INITIAL_DIRECTIONS$",self.changed_initial_directions)
         self.add_user_message(self.guesser, self.playerA_initial_prompt)
@@ -212,6 +212,7 @@ class Textmapworld(DialogueGameMaster):
             stop_action = re.search(self.stop_construction, utterance, re.IGNORECASE)
             move_action = re.search(self.move_construction, utterance, re.IGNORECASE)
             if move_action and stop_action:
+                #self.log_to_self("both_answers", "Both answers are present in the utterance")
                 self.invalid_response = True
                 return False
             if stop_action:
@@ -219,6 +220,7 @@ class Textmapworld(DialogueGameMaster):
                 return True
             count_go =  re.findall(self.move_construction, utterance, re.IGNORECASE)
             if len(count_go) > 1:
+                #self.log_to_self("several_goes", "There are several GOs in the utterance")
                 self.invalid_response = True
                 return False
             if move_action:
@@ -364,9 +366,8 @@ class GraphGameScorer(GameScorer):
                     seen.update(self.adj(current))
                     loops.append(current)
                     visited.add(current)
-                    if loop_identification(loops, False):
+                    if loop_identification(loops):
                         count_loops += 1
-                        loops.clear()
                     
                 if action['type'] == "stop":
                     if action["content"]:
@@ -405,8 +406,8 @@ class GraphGameScorer(GameScorer):
         self.log_episode_score('invalid_moves', invalid_moves if stopped else np.NaN) 
         self.log_episode_score('stopped', int(stopped) if stopped else np.NaN)
         self.log_episode_score('turns_limit', int(turns_limit_reached) if stopped else np.NaN)
-        self.log_episode_score('loops', count_loops if stopped else np.NaN)
-        self.log_episode_score('number_visited', len(visited) if stopped else np.NaN)
+        self.log_episode_score('loops', count_loops if stopped else np.NaN )
+        self.log_episode_score('number_visited', len(visited) if stopped else np.NaN )
         self.log_episode_score('seen', len(seen) if stopped else np.NaN)
         self.log_episode_score('efficiency', efficiency  if stopped else np.NaN)
         self.log_episode_score('exploration', exploration  if stopped else np.NaN)

@@ -119,19 +119,11 @@ def ambiguity_move(old_one, new_one, mapping, moves, move_type):
                                             return label, s[1]
                                         
 
-def loop_identification(visited_rooms, double_cycle):
-    flag_loop = False
-    if not double_cycle:
-        if len(visited_rooms) >= 5:
-            if visited_rooms[-1] == visited_rooms[-5] and visited_rooms[-2] == visited_rooms[-4] and visited_rooms[-3] == visited_rooms[-5]:
-                flag_loop = True
-    elif double_cycle:
-        if len(visited_rooms) >= 10:
-            l1, l2=np.array_split(visited_rooms[-10:] , 2)
-            if all(l1==l2):
-                if l1[-1] == l1[-5] and l1[-2] == l1[-4] and l1[-3] == l1[-5]:
-                    flag_loop = True
-    return flag_loop
+def loop_identification(visited_nodes):
+    if len(visited_nodes) >= 4:
+        if len(set(visited_nodes[-4:])) < 3:
+            return True
+    return False
 
 
 def lowercase_list_strings(original_list):
@@ -143,10 +135,13 @@ def lowercase_tuple_strings(original_list, type):
         return [(item[0].lower(), item[1].lower()) for item in combined_list]
     elif type == "original":
         return [(item[0].lower(), item[1].lower()) for item in original_list]
-
+    elif type == "none":
+        return original_list
+    
 def create_graph(nodes, edges, type):
     G = nx.Graph()
-    nodes= lowercase_list_strings(nodes)
+    if type == "generated" or type == "original":
+        nodes= lowercase_list_strings(nodes)
     edges= lowercase_tuple_strings(edges, type)
     G.add_nodes_from(nodes)
     for edge in edges:
@@ -156,8 +151,9 @@ def create_graph(nodes, edges, type):
 
     
 def normalize(distance):
-    normalized_distance = 1 / (1 + np.exp(-0.5 * distance))
-    return normalized_distance
+        normalized_distance = 1 / (1 + np.exp(-0.5 * distance))
+        normalized_distance = 2*(normalized_distance - 0.5)
+        return normalized_distance
     
 def calculate_similarity(graph1, graph2):
     distance = nx.graph_edit_distance(graph1, graph2)

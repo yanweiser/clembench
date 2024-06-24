@@ -299,6 +299,8 @@ class GraphGameScorer(GameScorer):
         new_edges.extend(self.old_edges)
         self.edges = new_edges
         self.start = game_instance["Current_Position"]
+        self.mapping = ast.literal_eval(game_instance['Mapping'])
+        self.graph_data = {}
 
     
     def visited_all(self, visited, to_visit):
@@ -357,6 +359,8 @@ class GraphGameScorer(GameScorer):
         graphs= []
         loops = []
         count_loops = 0
+        count_graphs = 0
+        content = []
         loops.append(self.start)
 
         for turn in episode_interactions["turns"]:
@@ -370,6 +374,7 @@ class GraphGameScorer(GameScorer):
                 if action['type'] == "move":
                     cont = json.loads(action['content'])
                     if not cont["old"] == cont["new"]:
+                        content.append(cont["old"])
                         valid_moves += 1
                     else:
                         invalid_moves += 1
@@ -386,16 +391,23 @@ class GraphGameScorer(GameScorer):
                     seen.update(self.adj(current))
                     loops.append(current)
                     visited.add(current)
-                    if loop_identification(loops, False):
+                    if loop_identification(loops):
                         count_loops += 1
-                        loops.clear()
+
+                #if event['from']== "Player 1" and event["to"]== "GM" and action['type'] == "get message":
+                    #content.append(ast.literal_eval(action['content'])["action"])
 
                 if action['type'] == "graph":
                     try:
+                        count_graphs += 1
+                        self.graph_data["goal"] = self.mapping
+                        self.graph_data[count_graphs]= {}
                         cont = ast.literal_eval(action['content'])
-                        G1= create_graph(self.nodes, self.old_edges, "original")
+                        G1= create_graph(self.nodes, self.edges, "original")
                         G2= create_graph(cont['nodes'], cont['edges'], "generated")
+                        self.graph_data[count_graphs]["generated"] = cont
                         similarity_percent = calculate_similarity(G1, G2)*100
+                        self.graph_data[count_graphs]["similarity"] = similarity_percent
                         graphs_similarity.append(similarity_percent)
                         graphs.append(cont)
                     except:
@@ -431,8 +443,7 @@ class GraphGameScorer(GameScorer):
                     self.log_episode_score(METRIC_SUCCESS, 0)
                     self.log_episode_score(METRIC_ABORTED, 0)
                     self.log_episode_score(METRIC_LOSE, 1)
-                    
-        #if nominator and denominator are 0, the result is NaN 
+       
         exploration = (len(visited) / len(self.nodes) * 100) if len(self.nodes) else 0
         efficiency = (sum(good_move) / len(good_move) * 100) if good_move else 0
         bench_score = (2 * efficiency * exploration / (efficiency + exploration)) if (efficiency+exploration) else 0
@@ -447,10 +458,11 @@ class GraphGameScorer(GameScorer):
         self.log_episode_score('efficiency', efficiency  if stopped else np.NaN)
         self.log_episode_score('exploration', exploration  if stopped else np.NaN)
         if graphs_similarity and stopped:
-                self.log_episode_score('graph_similarity', graphs_similarity[-1])
+                self.log_episode_score('graph_similarity', graphs_similarity[-1] if stopped else np.NaN)
         else:
             self.log_episode_score('graph_similarity', 0 if stopped else np.NaN)
         self.log_episode_score(BENCH_SCORE, bench_score if stopped else np.NaN)
+
 
 
 class GraphGameBenchmark(GameBenchmark):
